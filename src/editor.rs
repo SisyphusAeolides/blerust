@@ -125,9 +125,10 @@ impl LineEditor {
                         }
                         return Ok(ReadlineResult::Success(command));
                     } else {
-                        if self.config.tab_completion {
-                            self.trigger_autocomplete();
-                        }
+                        // Pasted text is literal input. Completion resumes on
+                        // the next typed edit instead of interpreting code or
+                        // data from the clipboard as an interactive prefix.
+                        self.completion_menu = None;
                         self.render(prompt)?;
                         continue;
                     }
