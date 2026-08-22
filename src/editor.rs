@@ -218,19 +218,25 @@ impl LineEditor {
                             }
                         }
                         Action::HistoryPrev => {
-                            let prefix = self.buffer.as_str();
+                            if self.history.search_prefix.is_none() {
+                                self.history.search_prefix = Some(self.buffer.as_str().to_string());
+                            }
+                            let prefix = self.history.search_prefix.as_ref().unwrap().clone();
                             if let Some(matched) = self.history.previous_match(&prefix) {
                                 let s = matched.to_string();
                                 self.buffer = LineBuffer::from_text(&s);
                             }
                         }
                         Action::HistoryNext => {
-                            let prefix = self.buffer.as_str();
+                            if self.history.search_prefix.is_none() {
+                                self.history.search_prefix = Some(self.buffer.as_str().to_string());
+                            }
+                            let prefix = self.history.search_prefix.as_ref().unwrap().clone();
                             if let Some(matched) = self.history.next_match(&prefix) {
                                 let s = matched.to_string();
                                 self.buffer = LineBuffer::from_text(&s);
                             } else {
-                                self.buffer.clear();
+                                self.buffer = LineBuffer::from_text(&prefix);
                             }
                         }
                         Action::CompleteTab => {

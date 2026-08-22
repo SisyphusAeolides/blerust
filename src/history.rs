@@ -24,6 +24,7 @@ impl History {
             cursor: None,
             file_path: None,
             max_entries: 10000,
+            search_prefix: None,
         };
 
         if let Some(home) = env::var_os("HOME") {
@@ -41,6 +42,7 @@ impl History {
             cursor: None,
             file_path: Some(path.as_ref().to_path_buf()),
             max_entries: 10000,
+            search_prefix: None,
         };
         let _ = history.load_from_file(path);
         history
@@ -92,6 +94,7 @@ impl History {
 
     pub fn reset_cursor(&mut self) {
         self.cursor = None;
+        self.search_prefix = None;
     }
 
     pub fn suggest_suffix(&self, prefix: &str) -> Option<String> {
