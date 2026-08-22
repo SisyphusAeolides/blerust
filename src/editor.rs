@@ -129,7 +129,7 @@ impl LineEditor {
                         // the next typed edit instead of interpreting code or
                         // data from the clipboard as an interactive prefix.
                         self.completion_menu = None;
-                        self.render(prompt)?;
+                        self.render_literal_paste(prompt)?;
                         continue;
                     }
                 }
@@ -354,6 +354,14 @@ impl LineEditor {
         } else {
             self.completion_menu = None;
         }
+    }
+
+    fn render_literal_paste(&mut self, prompt: &str) -> io::Result<()> {
+        let auto_suggestion = self.config.auto_suggestion;
+        self.config.auto_suggestion = false;
+        let result = self.render(prompt);
+        self.config.auto_suggestion = auto_suggestion;
+        result
     }
 
     fn prompt_visual_width(prompt: &str) -> usize {
