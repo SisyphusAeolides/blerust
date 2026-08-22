@@ -1,6 +1,6 @@
 %global debug_package %{nil}
 Name:           blerust
-Version:        0.1.8
+Version:        0.1.9
 Release:        1%{?dist}
 Summary:        Blazing fast and robust line editor in Rust
 
@@ -30,5 +30,8 @@ install -pm 755 target/release/%{name} %{buildroot}%{_bindir}/%{name}
 %{_bindir}/%{name}
 
 %changelog
+* Sat Aug 22 2026 Kenny Glowner <SisyphusAeolides@pm.me> - 0.1.9-1
+- Preserve and execute pasted multi-command shell blocks atomically
+
 * Sat Aug 22 2026 Kenny Glowner <SisyphusAeolides@pm.me> - 0.1.0-1
 - Initial release
