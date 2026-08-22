@@ -1,6 +1,6 @@
 %global debug_package %{nil}
 Name:           blerust
-Version:        0.1.11
+Version:        0.1.12
 Release:        1%{?dist}
 Summary:        Blazing fast and robust line editor in Rust
 
@@ -30,6 +30,9 @@ install -pm 755 target/release/%{name} %{buildroot}%{_bindir}/%{name}
 %{_bindir}/%{name}
 
 %changelog
+* Sat Aug 22 2026 Kenny Glowner <SisyphusAeolides@pm.me> - 0.1.12-1
+- Keep multiline paste editable until the user explicitly presses Enter
+
 * Sat Aug 22 2026 Kenny Glowner <SisyphusAeolides@pm.me> - 0.1.11-1
 - Suppress history suggestions while literal paste input is rendered
 

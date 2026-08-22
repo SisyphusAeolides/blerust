@@ -116,22 +116,12 @@ impl LineEditor {
 
                     self.buffer.insert_str(&text);
 
-                    if text.contains('\n') {
-                        let command = self.buffer.as_str();
-                        self.completion_menu = None;
-                        self.render_pasted_block_final(prompt, &command)?;
-                        if !command.trim().is_empty() {
-                            self.history.add(&command);
-                        }
-                        return Ok(ReadlineResult::Success(command));
-                    } else {
-                        // Pasted text is literal input. Completion resumes on
-                        // the next typed edit instead of interpreting code or
-                        // data from the clipboard as an interactive prefix.
-                        self.completion_menu = None;
-                        self.render_literal_paste(prompt)?;
-                        continue;
-                    }
+                    // Pasted text is literal editable input. Completion and
+                    // history suggestions resume on the next typed edit, and
+                    // even a multiline paste waits for an explicit submit.
+                    self.completion_menu = None;
+                    self.render_literal_paste(prompt)?;
+                    continue;
                 }
                 Event::Key(key_event) => {
                     let action = self.keymap.handle_key(key_event);
@@ -405,16 +395,18 @@ impl LineEditor {
             let spans = self.highlighter.highlight(&line);
             for span in spans {
                 self.stdout.queue(PrintStyledContent(StyledContent::new(
-                    span.style, span.text,
+                    span.style,
+                    span.text.replace('\n', "\r\n"),
                 )))?;
                 self.stdout.queue(ResetColor)?;
             }
         } else {
-            self.stdout.queue(Print(&line))?;
+            self.stdout.queue(Print(line.replace('\n', "\r\n")))?;
         }
 
         let mut suffix_len = 0;
         if self.config.auto_suggestion
+            && !line.contains('\n')
             && self.buffer.cursor() == self.buffer.len()
             && let Some(suffix) = self.history.suggest_suffix(&line)
         {
@@ -427,15 +419,12 @@ impl LineEditor {
         let (cols, _rows) = terminal::size().unwrap_or((80, 24));
         let cols = cols.max(1);
 
-        let prompt_width = Self::prompt_visual_width(prompt);
-        let cursor_visual_offset = self.buffer.visual_cursor_col();
-        let line_visual_offset = self.buffer.visual_width();
-        let total_offset = prompt_width + cursor_visual_offset;
-        let end_offset = prompt_width + line_visual_offset + suffix_len;
-
-        let target_row_offset = (total_offset / cols as usize) as u16;
-        let target_col_offset = (total_offset % cols as usize) as u16;
-        let end_row_offset = (end_offset / cols as usize) as u16;
+        let (target_row_offset, target_col_offset) =
+            visual_position(&line, self.buffer.cursor(), prompt_width, cols as usize);
+        let (end_row_offset, _) =
+            visual_position(&line, self.buffer.len(), prompt_width, cols as usize);
+        let end_row_offset = end_row_offset
+            .saturating_add(((target_col_offset as usize + suffix_len) / cols as usize) as u16);
         let rows_to_move_up = end_row_offset - target_row_offset;
 
         if let Some(ref candidates) = self.completion_menu {
@@ -482,14 +471,12 @@ impl LineEditor {
         let (cols, _) = terminal::size().unwrap_or((80, 24));
         let cols = cols.max(1);
 
+        let line = self.buffer.as_str();
         let prompt_width = Self::prompt_visual_width(_prompt);
-        let cursor_visual_offset = self.buffer.visual_cursor_col();
-        let line_visual_offset = self.buffer.visual_width();
-        let total_offset = prompt_width + cursor_visual_offset;
-        let end_offset = prompt_width + line_visual_offset;
-
-        let target_row_offset = (total_offset / cols as usize) as u16;
-        let end_row_offset = (end_offset / cols as usize) as u16;
+        let (target_row_offset, _) =
+            visual_position(&line, self.buffer.cursor(), prompt_width, cols as usize);
+        let (end_row_offset, _) =
+            visual_position(&line, self.buffer.len(), prompt_width, cols as usize);
 
         if end_row_offset > target_row_offset {
             self.stdout
@@ -502,19 +489,31 @@ impl LineEditor {
         self.stdout.flush()?;
         Ok(())
     }
+}
 
-    fn render_pasted_block_final(&mut self, prompt: &str, command: &str) -> io::Result<()> {
-        self.stdout.queue(Print("\r"))?;
-        self.stdout.queue(Clear(ClearType::FromCursorDown))?;
-        self.stdout.queue(Print(prompt))?;
-        self.stdout.queue(Print(command.replace('\n', "\r\n")))?;
-        self.stdout.queue(ResetColor)?;
-        if !command.ends_with('\n') {
-            self.stdout.queue(Print("\r\n"))?;
+fn visual_position(
+    text: &str,
+    character_limit: usize,
+    initial_column: usize,
+    columns: usize,
+) -> (u16, u16) {
+    let columns = columns.max(1);
+    let mut row = initial_column / columns;
+    let mut column = initial_column % columns;
+    for character in text.chars().take(character_limit) {
+        if character == '\n' {
+            row += 1;
+            column = 0;
+            continue;
         }
-        self.stdout.flush()?;
-        Ok(())
+        let width = unicode_width::UnicodeWidthChar::width(character).unwrap_or(0);
+        row += (column + width) / columns;
+        column = (column + width) % columns;
     }
+    (
+        u16::try_from(row).unwrap_or(u16::MAX),
+        u16::try_from(column).unwrap_or(u16::MAX),
+    )
 }
 
 fn normalize_paste(text: &str) -> String {
@@ -523,7 +522,7 @@ fn normalize_paste(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_paste;
+    use super::{normalize_paste, visual_position};
 
     #[test]
     fn preserves_multiple_commands_as_one_block() {
@@ -543,5 +542,11 @@ mod tests {
     fn preserves_heredoc_structure() {
         let pasted = "cat <<'EOF'\nfirst\nsecond\nEOF\n";
         assert_eq!(normalize_paste(pasted), pasted);
+    }
+
+    #[test]
+    fn multiline_visual_position_resets_columns_at_newlines() {
+        assert_eq!(visual_position("abc\ndef", 7, 5, 80), (1, 3));
+        assert_eq!(visual_position("abc\ndef", 4, 5, 80), (1, 0));
     }
 }
