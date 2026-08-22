@@ -1,6 +1,6 @@
 %global debug_package %{nil}
 Name:           blerust
-Version:        0.1.4
+Version:        0.1.5
 Release:        1%{?dist}
 Summary:        Blazing fast and robust line editor in Rust
 
