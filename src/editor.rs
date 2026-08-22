@@ -233,6 +233,7 @@ impl LineEditor {
                             if self.config.tab_completion {
                                 let line = self.buffer.as_str();
                                 let cursor = self.buffer.cursor();
+                                let mut handled = false;
                                 if let Some((start_idx, candidates)) = self.completer.complete(&line, cursor) {
                                     if candidates.len() == 1 {
                                         let replacement = &candidates[0];
@@ -242,6 +243,7 @@ impl LineEditor {
                                             self.buffer.insert_str(addition);
                                         }
                                         self.completion_menu = None;
+                                        handled = true;
                                     } else if candidates.len() > 1 {
                                         let lcp = Completer::longest_common_prefix(&candidates);
                                         let current_token = &line[start_idx..cursor];
@@ -249,7 +251,15 @@ impl LineEditor {
                                             let addition = &lcp[current_token.len()..];
                                             self.buffer.insert_str(addition);
                                         }
+                                        handled = true;
                                         // Menu is already populated by auto-complete trigger
+                                    }
+                                }
+                                
+                                // Fallback: if no completion candidates, accept shadow suggestion
+                                if !handled && self.config.auto_suggestion && cursor == line.len() {
+                                    if let Some(suffix) = self.history.suggest_suffix(&line) {
+                                        self.buffer.insert_str(&suffix);
                                     }
                                 }
                             }

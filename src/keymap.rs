@@ -78,7 +78,7 @@ impl Keymap {
             (KeyCode::Char('r'), KeyModifiers::CONTROL) => Action::Redo,
 
             (KeyCode::Left, KeyModifiers::NONE) => Action::MoveLeft,
-            (KeyCode::Right, KeyModifiers::NONE) => Action::MoveRight,
+            (KeyCode::Right, KeyModifiers::NONE) => Action::AcceptSuggestion,
             (KeyCode::Left, KeyModifiers::CONTROL) => Action::MoveWordLeft,
             (KeyCode::Right, KeyModifiers::CONTROL) => Action::MoveWordRight,
             (KeyCode::Home, KeyModifiers::NONE) => Action::MoveHome,
