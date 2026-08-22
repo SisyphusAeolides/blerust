@@ -6,17 +6,18 @@ use std::sync::{LazyLock, Mutex};
 
 static SHELL_BUILTINS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     [
-        "alias", "bg", "bind", "break", "builtin", "cd", "command", "continue", "declare",
-        "dirs", "disown", "echo", "enable", "eval", "exec", "exit", "export", "fc", "fg",
-        "getopts", "hash", "help", "history", "jobs", "kill", "let", "local", "popd", "pushd",
-        "pwd", "read", "readonly", "return", "set", "shift", "shopt", "source", "suspend",
-        "test", "times", "trap", "type", "typeset", "ulimit", "umask", "unalias", "unset", "wait",
+        "alias", "bg", "bind", "break", "builtin", "cd", "command", "continue", "declare", "dirs",
+        "disown", "echo", "enable", "eval", "exec", "exit", "export", "fc", "fg", "getopts",
+        "hash", "help", "history", "jobs", "kill", "let", "local", "popd", "pushd", "pwd", "read",
+        "readonly", "return", "set", "shift", "shopt", "source", "suspend", "test", "times",
+        "trap", "type", "typeset", "ulimit", "umask", "unalias", "unset", "wait",
     ]
     .into_iter()
     .collect()
 });
 
-static CMD_CACHE: LazyLock<Mutex<HashMap<String, bool>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+static CMD_CACHE: LazyLock<Mutex<HashMap<String, bool>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub fn is_command_in_path(cmd: &str) -> bool {
     if SHELL_BUILTINS.contains(cmd) {
@@ -88,6 +89,12 @@ pub struct StyledSpan {
 }
 
 pub struct SyntaxHighlighter;
+
+impl Default for SyntaxHighlighter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl SyntaxHighlighter {
     pub fn new() -> Self {
@@ -194,7 +201,11 @@ impl SyntaxHighlighter {
                 }
                 let var_text: String = chars[start..i].iter().collect();
                 let mut style = ContentStyle::new();
-                style.foreground_color = Some(Color::Rgb { r: 255, g: 165, b: 0 }); // Amber
+                style.foreground_color = Some(Color::Rgb {
+                    r: 255,
+                    g: 165,
+                    b: 0,
+                }); // Amber
                 spans.push(StyledSpan {
                     text: var_text,
                     token_type: TokenType::Variable,
@@ -206,7 +217,12 @@ impl SyntaxHighlighter {
 
             if ch == '-' {
                 let start = i;
-                while i < len && !chars[i].is_whitespace() && chars[i] != '|' && chars[i] != '&' && chars[i] != ';' {
+                while i < len
+                    && !chars[i].is_whitespace()
+                    && chars[i] != '|'
+                    && chars[i] != '&'
+                    && chars[i] != ';'
+                {
                     i += 1;
                 }
                 let flag_text: String = chars[start..i].iter().collect();
@@ -240,7 +256,11 @@ impl SyntaxHighlighter {
                 expecting_command = false;
                 if SHELL_BUILTINS.contains(word.as_str()) {
                     let mut style = ContentStyle::new();
-                    style.foreground_color = Some(Color::Rgb { r: 0, g: 200, b: 150 }); // Teal
+                    style.foreground_color = Some(Color::Rgb {
+                        r: 0,
+                        g: 200,
+                        b: 150,
+                    }); // Teal
                     spans.push(StyledSpan {
                         text: word,
                         token_type: TokenType::Builtin,

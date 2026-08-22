@@ -38,7 +38,7 @@ impl LineBuffer {
         }
     }
 
-    pub fn from_str(text: &str) -> Self {
+    pub fn from_text(text: &str) -> Self {
         let buffer: Vec<char> = text.chars().collect();
         let cursor = buffer.len();
         Self {
@@ -50,6 +50,11 @@ impl LineBuffer {
             current_transaction: Vec::new(),
             is_inserting: false,
         }
+    }
+
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(text: &str) -> Self {
+        Self::from_text(text)
     }
 
     pub fn as_str(&self) -> String {
@@ -92,22 +97,28 @@ impl LineBuffer {
             self.is_inserting = true;
         }
         self.buffer.insert(self.cursor, ch);
-        self.current_transaction.push(EditAction::InsertChar(self.cursor, ch));
+        self.current_transaction
+            .push(EditAction::InsertChar(self.cursor, ch));
         self.cursor += 1;
     }
 
     pub fn insert_str(&mut self, text: &str) {
         self.commit_transaction();
         let chars: Vec<char> = text.chars().collect();
-        if chars.is_empty() { return; }
-        
+        if chars.is_empty() {
+            return;
+        }
+
         let mut inserted_str = String::new();
         for ch in chars {
             self.buffer.insert(self.cursor, ch);
             inserted_str.push(ch);
             self.cursor += 1;
         }
-        self.undo_stack.push(vec![EditAction::InsertStr(self.cursor - inserted_str.chars().count(), inserted_str)]);
+        self.undo_stack.push(vec![EditAction::InsertStr(
+            self.cursor - inserted_str.chars().count(),
+            inserted_str,
+        )]);
         self.redo_stack.clear();
     }
 
@@ -118,7 +129,8 @@ impl LineBuffer {
             }
             self.cursor -= 1;
             let ch = self.buffer.remove(self.cursor);
-            self.current_transaction.push(EditAction::DeleteChar(self.cursor, ch));
+            self.current_transaction
+                .push(EditAction::DeleteChar(self.cursor, ch));
             true
         } else {
             false
@@ -131,7 +143,8 @@ impl LineBuffer {
                 self.commit_transaction();
             }
             let ch = self.buffer.remove(self.cursor);
-            self.current_transaction.push(EditAction::DeleteChar(self.cursor, ch));
+            self.current_transaction
+                .push(EditAction::DeleteChar(self.cursor, ch));
             true
         } else {
             false
@@ -203,7 +216,8 @@ impl LineBuffer {
         self.commit_transaction();
         if self.cursor < self.buffer.len() {
             let killed: String = self.buffer.drain(self.cursor..).collect();
-            self.undo_stack.push(vec![EditAction::DeleteStr(self.cursor, killed.clone())]);
+            self.undo_stack
+                .push(vec![EditAction::DeleteStr(self.cursor, killed.clone())]);
             self.redo_stack.clear();
             self.kill_ring.push(killed);
         }
@@ -213,7 +227,8 @@ impl LineBuffer {
         self.commit_transaction();
         if self.cursor > 0 {
             let killed: String = self.buffer.drain(0..self.cursor).collect();
-            self.undo_stack.push(vec![EditAction::DeleteStr(0, killed.clone())]);
+            self.undo_stack
+                .push(vec![EditAction::DeleteStr(0, killed.clone())]);
             self.redo_stack.clear();
             self.cursor = 0;
             self.kill_ring.push(killed);
@@ -229,7 +244,8 @@ impl LineBuffer {
         self.move_word_left();
         let new_cursor = self.cursor;
         let killed: String = self.buffer.drain(new_cursor..old_cursor).collect();
-        self.undo_stack.push(vec![EditAction::DeleteStr(new_cursor, killed.clone())]);
+        self.undo_stack
+            .push(vec![EditAction::DeleteStr(new_cursor, killed.clone())]);
         self.redo_stack.clear();
         self.kill_ring.push(killed);
     }
@@ -342,9 +358,14 @@ impl LineBuffer {
     }
 
     pub fn visual_width(&self) -> usize {
-        self.buffer
-            .iter()
-            .map(|ch| ch.width().unwrap_or(0))
-            .sum()
+        self.buffer.iter().map(|ch| ch.width().unwrap_or(0)).sum()
+    }
+}
+
+impl std::str::FromStr for LineBuffer {
+    type Err = std::convert::Infallible;
+
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        Ok(Self::from_text(text))
     }
 }

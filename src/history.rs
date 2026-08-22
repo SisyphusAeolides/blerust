@@ -8,6 +8,7 @@ pub struct History {
     cursor: Option<usize>,
     file_path: Option<PathBuf>,
     max_entries: usize,
+    pub search_prefix: Option<String>,
 }
 
 impl Default for History {
@@ -80,10 +81,10 @@ impl History {
             self.entries.remove(0);
         }
 
-        if let Some(ref path) = self.file_path {
-            if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
-                let _ = writeln!(file, "{}", trimmed);
-            }
+        if let Some(ref path) = self.file_path
+            && let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path)
+        {
+            let _ = writeln!(file, "{}", trimmed);
         }
 
         self.reset_cursor();
@@ -138,10 +139,7 @@ impl History {
             return None;
         }
 
-        let start_idx = match self.cursor {
-            Some(idx) => idx + 1,
-            None => return None,
-        };
+        let start_idx = self.cursor? + 1;
 
         for i in start_idx..len {
             if self.entries[i].starts_with(prefix) {

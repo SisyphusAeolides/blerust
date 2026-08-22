@@ -74,7 +74,8 @@ impl Keymap {
             (KeyCode::Char('u'), KeyModifiers::CONTROL) => Action::KillToStart,
             (KeyCode::Char('w'), KeyModifiers::CONTROL) => Action::KillWordLeft,
             (KeyCode::Char('y'), KeyModifiers::CONTROL) => Action::Yank,
-            (KeyCode::Char('z'), KeyModifiers::CONTROL) | (KeyCode::Char('_'), KeyModifiers::CONTROL) => Action::Undo,
+            (KeyCode::Char('z'), KeyModifiers::CONTROL)
+            | (KeyCode::Char('_'), KeyModifiers::CONTROL) => Action::Undo,
             (KeyCode::Char('r'), KeyModifiers::CONTROL) => Action::Redo,
 
             (KeyCode::Left, KeyModifiers::NONE) => Action::MoveLeft,
@@ -84,8 +85,12 @@ impl Keymap {
             (KeyCode::Home, KeyModifiers::NONE) => Action::MoveHome,
             (KeyCode::End, KeyModifiers::NONE) => Action::MoveEnd,
 
-            (KeyCode::Up, KeyModifiers::NONE) | (KeyCode::Char('p'), KeyModifiers::CONTROL) => Action::HistoryPrev,
-            (KeyCode::Down, KeyModifiers::NONE) | (KeyCode::Char('n'), KeyModifiers::CONTROL) => Action::HistoryNext,
+            (KeyCode::Up, KeyModifiers::NONE) | (KeyCode::Char('p'), KeyModifiers::CONTROL) => {
+                Action::HistoryPrev
+            }
+            (KeyCode::Down, KeyModifiers::NONE) | (KeyCode::Char('n'), KeyModifiers::CONTROL) => {
+                Action::HistoryNext
+            }
 
             (KeyCode::Tab, KeyModifiers::NONE) => Action::CompleteTab,
             (KeyCode::Backspace, KeyModifiers::NONE) => Action::Backspace,
@@ -134,10 +139,18 @@ impl Keymap {
                 self.mode = EditMode::ViInsert;
                 Action::MoveHome
             }
-            (KeyCode::Char('h'), KeyModifiers::NONE) | (KeyCode::Left, KeyModifiers::NONE) => Action::MoveLeft,
-            (KeyCode::Char('l'), KeyModifiers::NONE) | (KeyCode::Right, KeyModifiers::NONE) => Action::MoveRight,
-            (KeyCode::Char('k'), KeyModifiers::NONE) | (KeyCode::Up, KeyModifiers::NONE) => Action::HistoryPrev,
-            (KeyCode::Char('j'), KeyModifiers::NONE) | (KeyCode::Down, KeyModifiers::NONE) => Action::HistoryNext,
+            (KeyCode::Char('h'), KeyModifiers::NONE) | (KeyCode::Left, KeyModifiers::NONE) => {
+                Action::MoveLeft
+            }
+            (KeyCode::Char('l'), KeyModifiers::NONE) | (KeyCode::Right, KeyModifiers::NONE) => {
+                Action::MoveRight
+            }
+            (KeyCode::Char('k'), KeyModifiers::NONE) | (KeyCode::Up, KeyModifiers::NONE) => {
+                Action::HistoryPrev
+            }
+            (KeyCode::Char('j'), KeyModifiers::NONE) | (KeyCode::Down, KeyModifiers::NONE) => {
+                Action::HistoryNext
+            }
             (KeyCode::Char('w'), KeyModifiers::NONE) => Action::MoveWordRight,
             (KeyCode::Char('b'), KeyModifiers::NONE) => Action::MoveWordLeft,
             (KeyCode::Char('0'), KeyModifiers::NONE) => Action::MoveHome,

@@ -1,10 +1,12 @@
 use std::io::{self, Stdout, Write};
 
+use crossterm::QueueableCommand;
 use crossterm::cursor::{self, MoveTo, MoveToColumn};
 use crossterm::event::{self, Event};
-use crossterm::style::{Color, Print, PrintStyledContent, ResetColor, SetForegroundColor, StyledContent};
+use crossterm::style::{
+    Color, Print, PrintStyledContent, ResetColor, SetForegroundColor, StyledContent,
+};
 use crossterm::terminal::{self, Clear, ClearType};
-use crossterm::QueueableCommand;
 
 use crate::buffer::LineBuffer;
 use crate::completion::Completer;
@@ -204,7 +206,9 @@ impl LineEditor {
                             self.stdout.queue(MoveTo(0, 0))?;
                         }
                         Action::AcceptSuggestion => {
-                            if self.config.auto_suggestion && self.buffer.cursor() == self.buffer.len() {
+                            if self.config.auto_suggestion
+                                && self.buffer.cursor() == self.buffer.len()
+                            {
                                 let line = self.buffer.as_str();
                                 if let Some(suffix) = self.history.suggest_suffix(&line) {
                                     self.buffer.insert_str(&suffix);
@@ -217,14 +221,14 @@ impl LineEditor {
                             let prefix = self.buffer.as_str();
                             if let Some(matched) = self.history.previous_match(&prefix) {
                                 let s = matched.to_string();
-                                self.buffer = LineBuffer::from_str(&s);
+                                self.buffer = LineBuffer::from_text(&s);
                             }
                         }
                         Action::HistoryNext => {
                             let prefix = self.buffer.as_str();
                             if let Some(matched) = self.history.next_match(&prefix) {
                                 let s = matched.to_string();
-                                self.buffer = LineBuffer::from_str(&s);
+                                self.buffer = LineBuffer::from_text(&s);
                             } else {
                                 self.buffer.clear();
                             }
@@ -234,33 +238,50 @@ impl LineEditor {
                                 let line = self.buffer.as_str();
                                 let cursor = self.buffer.cursor();
                                 let mut handled = false;
-                                if let Some((start_idx, candidates)) = self.completer.complete(&line, cursor) {
+                                if let Some((start_idx, candidates)) =
+                                    self.completer.complete(&line, cursor)
+                                {
                                     if candidates.len() == 1 {
                                         let replacement = &candidates[0];
-                                        let current_token = &line[start_idx..cursor];
-                                        if replacement.starts_with(current_token) {
-                                            let addition = &replacement[current_token.len()..];
+                                        let current_token: String = line
+                                            .chars()
+                                            .skip(start_idx)
+                                            .take(cursor.saturating_sub(start_idx))
+                                            .collect();
+                                        if let Some(addition) =
+                                            replacement.strip_prefix(&current_token)
+                                        {
                                             self.buffer.insert_str(addition);
                                         }
                                         self.completion_menu = None;
                                         handled = true;
                                     } else if candidates.len() > 1 {
                                         let lcp = Completer::longest_common_prefix(&candidates);
-                                        let current_token = &line[start_idx..cursor];
-                                        if lcp.len() > current_token.len() && lcp.starts_with(current_token) {
-                                            let addition = &lcp[current_token.len()..];
-                                            self.buffer.insert_str(addition);
+                                        let current_token: String = line
+                                            .chars()
+                                            .skip(start_idx)
+                                            .take(cursor.saturating_sub(start_idx))
+                                            .collect();
+                                        let current_chars = current_token.chars().count();
+                                        if lcp.chars().count() > current_chars
+                                            && lcp.starts_with(&current_token)
+                                        {
+                                            let addition: String =
+                                                lcp.chars().skip(current_chars).collect();
+                                            self.buffer.insert_str(&addition);
                                         }
                                         handled = true;
                                         // Menu is already populated by auto-complete trigger
                                     }
                                 }
-                                
+
                                 // Fallback: if no completion candidates, accept shadow suggestion
-                                if !handled && self.config.auto_suggestion && cursor == line.len() {
-                                    if let Some(suffix) = self.history.suggest_suffix(&line) {
-                                        self.buffer.insert_str(&suffix);
-                                    }
+                                if !handled
+                                    && self.config.auto_suggestion
+                                    && cursor == line.chars().count()
+                                    && let Some(suffix) = self.history.suggest_suffix(&line)
+                                {
+                                    self.buffer.insert_str(&suffix);
                                 }
                             }
                         }
@@ -279,13 +300,18 @@ impl LineEditor {
     fn trigger_autocomplete(&mut self) {
         let line = self.buffer.as_str();
         let cursor = self.buffer.cursor();
-        
+
         // Don't auto-trigger on space, it dumps the entire directory
-        if cursor > 0 && line[..cursor].chars().last().map_or(false, |c| c.is_whitespace()) {
+        if cursor > 0
+            && line
+                .chars()
+                .nth(cursor - 1)
+                .is_some_and(|c| c.is_whitespace())
+        {
             self.completion_menu = None;
             return;
         }
-        
+
         if let Some((_, candidates)) = self.completer.complete(&line, cursor) {
             if candidates.len() > 1 {
                 self.completion_menu = Some(candidates);
@@ -298,7 +324,7 @@ impl LineEditor {
     }
 
     fn prompt_visual_width(prompt: &str) -> usize {
-        let last_line = prompt.split('\n').last().unwrap_or(prompt);
+        let last_line = prompt.split('\n').next_back().unwrap_or(prompt);
         let mut width = 0;
         let mut in_ansi = false;
         for ch in last_line.chars() {
@@ -318,10 +344,11 @@ impl LineEditor {
     fn render(&mut self, prompt: &str) -> io::Result<()> {
         let line = self.buffer.as_str();
         let prompt_width = Self::prompt_visual_width(prompt);
-        
+
         if self.prompt_rendered {
             if self.rendered_row_offset > 0 {
-                self.stdout.queue(cursor::MoveUp(self.rendered_row_offset))?;
+                self.stdout
+                    .queue(cursor::MoveUp(self.rendered_row_offset))?;
             }
             self.stdout.queue(Print("\r"))?;
             self.stdout.queue(MoveToColumn(prompt_width as u16))?;
@@ -332,35 +359,39 @@ impl LineEditor {
             self.stdout.queue(Print(prompt))?;
             self.prompt_rendered = true;
         }
-        
+
         if self.config.syntax_highlighting {
             let spans = self.highlighter.highlight(&line);
             for span in spans {
-                self.stdout.queue(PrintStyledContent(StyledContent::new(span.style, span.text)))?;
+                self.stdout.queue(PrintStyledContent(StyledContent::new(
+                    span.style, span.text,
+                )))?;
+                self.stdout.queue(ResetColor)?;
             }
         } else {
             self.stdout.queue(Print(&line))?;
         }
-        
+
         let mut suffix_len = 0;
-        if self.config.auto_suggestion && self.buffer.cursor() == self.buffer.len() {
-            if let Some(suffix) = self.history.suggest_suffix(&line) {
-                suffix_len = unicode_width::UnicodeWidthStr::width(suffix.as_str());
-                self.stdout.queue(SetForegroundColor(Color::DarkGrey))?;
-                self.stdout.queue(Print(&suffix))?;
-                self.stdout.queue(ResetColor)?;
-            }
+        if self.config.auto_suggestion
+            && self.buffer.cursor() == self.buffer.len()
+            && let Some(suffix) = self.history.suggest_suffix(&line)
+        {
+            suffix_len = unicode_width::UnicodeWidthStr::width(suffix.as_str());
+            self.stdout.queue(SetForegroundColor(Color::DarkGrey))?;
+            self.stdout.queue(Print(&suffix))?;
+            self.stdout.queue(ResetColor)?;
         }
-        
+
         let (cols, _rows) = terminal::size().unwrap_or((80, 24));
         let cols = cols.max(1);
-        
+
         let prompt_width = Self::prompt_visual_width(prompt);
         let cursor_visual_offset = self.buffer.visual_cursor_col();
         let line_visual_offset = self.buffer.visual_width();
         let total_offset = prompt_width + cursor_visual_offset;
         let end_offset = prompt_width + line_visual_offset + suffix_len;
-        
+
         let target_row_offset = (total_offset / cols as usize) as u16;
         let target_col_offset = (total_offset % cols as usize) as u16;
         let end_row_offset = (end_offset / cols as usize) as u16;
@@ -370,12 +401,17 @@ impl LineEditor {
             self.stdout.queue(Print("\r\n"))?;
             self.stdout.queue(Clear(ClearType::CurrentLine))?;
 
-            let display_candidates: Vec<&str> = candidates.iter().take(8).map(|s| s.as_str()).collect();
+            let display_candidates: Vec<&str> =
+                candidates.iter().take(8).map(|s| s.as_str()).collect();
             let mut menu_str = display_candidates.join("   ");
-            
+
             let prefix = "  [ ";
-            let suffix_str = if candidates.len() > 8 { format!(" ... +{} more ]", candidates.len() - 8) } else { " ]".to_string() };
-            
+            let suffix_str = if candidates.len() > 8 {
+                format!(" ... +{} more ]", candidates.len() - 8)
+            } else {
+                " ]".to_string()
+            };
+
             let max_len = (cols as usize).saturating_sub(prefix.len() + suffix_str.len() + 1);
             if menu_str.len() > max_len {
                 menu_str.truncate(max_len);
@@ -388,10 +424,10 @@ impl LineEditor {
             self.stdout.queue(SetForegroundColor(Color::DarkCyan))?;
             self.stdout.queue(Print(&suffix_str))?;
             self.stdout.queue(ResetColor)?;
-            
+
             self.stdout.queue(cursor::MoveUp(1))?;
         }
-        
+
         if rows_to_move_up > 0 {
             self.stdout.queue(cursor::MoveUp(rows_to_move_up))?;
         }
@@ -404,20 +440,21 @@ impl LineEditor {
     fn render_line_final(&mut self, _prompt: &str) -> io::Result<()> {
         let (cols, _) = terminal::size().unwrap_or((80, 24));
         let cols = cols.max(1);
-        
+
         let prompt_width = Self::prompt_visual_width(_prompt);
         let cursor_visual_offset = self.buffer.visual_cursor_col();
         let line_visual_offset = self.buffer.visual_width();
         let total_offset = prompt_width + cursor_visual_offset;
         let end_offset = prompt_width + line_visual_offset;
-        
+
         let target_row_offset = (total_offset / cols as usize) as u16;
         let end_row_offset = (end_offset / cols as usize) as u16;
-        
+
         if end_row_offset > target_row_offset {
-            self.stdout.queue(cursor::MoveDown(end_row_offset - target_row_offset))?;
+            self.stdout
+                .queue(cursor::MoveDown(end_row_offset - target_row_offset))?;
         }
-        
+
         self.stdout.queue(ResetColor)?;
         self.stdout.queue(Print("\r\n"))?;
         self.stdout.queue(Clear(ClearType::CurrentLine))?;

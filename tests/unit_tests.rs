@@ -27,13 +27,19 @@ fn test_syntax_highlighting() {
     let spans = hl.highlight("echo \"hello world\" | grep hello # test comment");
     assert!(!spans.is_empty());
 
-    let has_builtin = spans.iter().any(|s| s.token_type == TokenType::Builtin && s.text == "echo");
+    let has_builtin = spans
+        .iter()
+        .any(|s| s.token_type == TokenType::Builtin && s.text == "echo");
     assert!(has_builtin);
 
-    let has_string = spans.iter().any(|s| s.token_type == TokenType::StringLiteral);
+    let has_string = spans
+        .iter()
+        .any(|s| s.token_type == TokenType::StringLiteral);
     assert!(has_string);
 
-    let has_op = spans.iter().any(|s| s.token_type == TokenType::Operator && s.text == "|");
+    let has_op = spans
+        .iter()
+        .any(|s| s.token_type == TokenType::Operator && s.text == "|");
     assert!(has_op);
 
     let has_comment = spans.iter().any(|s| s.token_type == TokenType::Comment);
@@ -43,7 +49,9 @@ fn test_syntax_highlighting() {
 #[test]
 fn test_completion_builtins_and_lcp() {
     let completer = Completer::new();
-    let (start, matches) = completer.complete("ec", 2).expect("expected matches for 'ec'");
+    let (start, matches) = completer
+        .complete("ec", 2)
+        .expect("expected matches for 'ec'");
     assert_eq!(start, 0);
     assert!(matches.contains(&"echo".to_string()));
 
@@ -59,6 +67,12 @@ fn test_history_suggestions() {
     history.add("git commit -m 'initial commit'");
     history.add("cargo build --release");
 
-    assert_eq!(history.suggest_suffix("cargo "), Some("build --release".to_string()));
-    assert_eq!(history.suggest_suffix("git c"), Some("ommit -m 'initial commit'".to_string()));
+    assert_eq!(
+        history.suggest_suffix("cargo "),
+        Some("build --release".to_string())
+    );
+    assert_eq!(
+        history.suggest_suffix("git c"),
+        Some("ommit -m 'initial commit'".to_string())
+    );
 }
