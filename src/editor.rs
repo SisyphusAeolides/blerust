@@ -43,6 +43,7 @@ pub struct LineEditor {
     completion_menu: Option<Vec<String>>,
     rendered_row_offset: u16,
     prompt_rendered: bool,
+    paste_queue: Vec<String>,
 }
 
 pub enum ReadlineResult {
@@ -71,6 +72,7 @@ impl LineEditor {
             completion_menu: None,
             rendered_row_offset: 0,
             prompt_rendered: false,
+            paste_queue: Vec::new(),
         }
     }
 
@@ -79,6 +81,18 @@ impl LineEditor {
     }
 
     pub fn readline(&mut self, prompt: &str) -> io::Result<ReadlineResult> {
+        if !self.paste_queue.is_empty() {
+            let line = self.paste_queue.remove(0);
+            self.stdout.queue(Print(prompt))?;
+            self.stdout.queue(Print(&line))?;
+            self.stdout.queue(Print("\r\n"))?;
+            self.stdout.flush()?;
+            if !line.trim().is_empty() {
+                self.history.add(&line);
+            }
+            return Ok(ReadlineResult::Success(line));
+        }
+
         self.buffer.clear();
         self.history.reset_cursor();
         self.completion_menu = None;
@@ -86,9 +100,11 @@ impl LineEditor {
         self.rendered_row_offset = 0;
 
         terminal::enable_raw_mode()?;
+        let _ = self.stdout.queue(crossterm::event::EnableBracketedPaste);
 
         let res = self.readline_loop(prompt);
 
+        let _ = self.stdout.queue(crossterm::event::DisableBracketedPaste);
         let _ = terminal::disable_raw_mode();
         let _ = self.stdout.queue(ResetColor);
         let _ = self.stdout.flush();
@@ -105,6 +121,40 @@ impl LineEditor {
                 Event::Resize(_cols, _rows) => {
                     self.render(prompt)?;
                     continue;
+                }
+                Event::Paste(text) => {
+                    let mut lines: Vec<&str> = text.split('\n').collect();
+                    if lines.is_empty() {
+                        continue;
+                    }
+                    
+                    let first_line = lines.remove(0);
+                    let first_line = first_line.replace('\r', "");
+                    
+                    for ch in first_line.chars() {
+                        self.buffer.insert_char(ch);
+                    }
+                    
+                    if !lines.is_empty() {
+                        for line in lines {
+                            let line = line.replace('\r', "");
+                            self.paste_queue.push(line);
+                        }
+                        
+                        let line_str = self.buffer.as_str();
+                        self.completion_menu = None;
+                        self.render_line_final(prompt)?;
+                        if !line_str.trim().is_empty() {
+                            self.history.add(&line_str);
+                        }
+                        return Ok(ReadlineResult::Success(line_str));
+                    } else {
+                        if self.config.tab_completion {
+                            self.trigger_autocomplete();
+                        }
+                        self.render(prompt)?;
+                        continue;
+                    }
                 }
                 Event::Key(key_event) => {
                     let action = self.keymap.handle_key(key_event);
