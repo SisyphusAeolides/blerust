@@ -97,7 +97,9 @@ impl Keymap {
             (KeyCode::Delete, KeyModifiers::NONE) => Action::Delete,
             (KeyCode::Enter, _)
             | (KeyCode::Char('\n'), _)
-            | (KeyCode::Char('\r'), _) => Action::Submit,
+            | (KeyCode::Char('\r'), _)
+            | (KeyCode::Char('j'), KeyModifiers::CONTROL)
+            | (KeyCode::Char('m'), KeyModifiers::CONTROL) => Action::Submit,
 
             (KeyCode::Char(c), KeyModifiers::NONE | KeyModifiers::SHIFT) => Action::InsertChar(c),
             _ => Action::Noop,
@@ -115,7 +117,9 @@ impl Keymap {
             (KeyCode::Backspace, KeyModifiers::NONE) => Action::Backspace,
             (KeyCode::Enter, _)
             | (KeyCode::Char('\n'), _)
-            | (KeyCode::Char('\r'), _) => Action::Submit,
+            | (KeyCode::Char('\r'), _)
+            | (KeyCode::Char('j'), KeyModifiers::CONTROL)
+            | (KeyCode::Char('m'), KeyModifiers::CONTROL) => Action::Submit,
             (KeyCode::Tab, KeyModifiers::NONE) => Action::CompleteTab,
             (KeyCode::Right, KeyModifiers::NONE) => Action::AcceptSuggestion,
             (KeyCode::Up, KeyModifiers::NONE) => Action::HistoryPrev,
@@ -165,7 +169,9 @@ impl Keymap {
             (KeyCode::Char('D'), KeyModifiers::SHIFT) => Action::KillToEnd,
             (KeyCode::Enter, _)
             | (KeyCode::Char('\n'), _)
-            | (KeyCode::Char('\r'), _) => Action::Submit,
+            | (KeyCode::Char('\r'), _)
+            | (KeyCode::Char('j'), KeyModifiers::CONTROL)
+            | (KeyCode::Char('m'), KeyModifiers::CONTROL) => Action::Submit,
             (KeyCode::Char('c'), KeyModifiers::CONTROL) => Action::Interrupt,
             _ => Action::Noop,
         }
