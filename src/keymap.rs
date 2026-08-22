@@ -95,9 +95,9 @@ impl Keymap {
             (KeyCode::Tab, KeyModifiers::NONE) => Action::CompleteTab,
             (KeyCode::Backspace, KeyModifiers::NONE) => Action::Backspace,
             (KeyCode::Delete, KeyModifiers::NONE) => Action::Delete,
-            (KeyCode::Enter, KeyModifiers::NONE)
-            | (KeyCode::Char('\n'), KeyModifiers::NONE)
-            | (KeyCode::Char('\r'), KeyModifiers::NONE) => Action::Submit,
+            (KeyCode::Enter, _)
+            | (KeyCode::Char('\n'), _)
+            | (KeyCode::Char('\r'), _) => Action::Submit,
 
             (KeyCode::Char(c), KeyModifiers::NONE | KeyModifiers::SHIFT) => Action::InsertChar(c),
             _ => Action::Noop,
@@ -113,9 +113,9 @@ impl Keymap {
             (KeyCode::Char('c'), KeyModifiers::CONTROL) => Action::Interrupt,
             (KeyCode::Char('d'), KeyModifiers::CONTROL) => Action::Eof,
             (KeyCode::Backspace, KeyModifiers::NONE) => Action::Backspace,
-            (KeyCode::Enter, KeyModifiers::NONE)
-            | (KeyCode::Char('\n'), KeyModifiers::NONE)
-            | (KeyCode::Char('\r'), KeyModifiers::NONE) => Action::Submit,
+            (KeyCode::Enter, _)
+            | (KeyCode::Char('\n'), _)
+            | (KeyCode::Char('\r'), _) => Action::Submit,
             (KeyCode::Tab, KeyModifiers::NONE) => Action::CompleteTab,
             (KeyCode::Right, KeyModifiers::NONE) => Action::AcceptSuggestion,
             (KeyCode::Up, KeyModifiers::NONE) => Action::HistoryPrev,
@@ -163,9 +163,9 @@ impl Keymap {
             (KeyCode::Char('u'), KeyModifiers::NONE) => Action::Undo,
             (KeyCode::Char('r'), KeyModifiers::CONTROL) => Action::Redo,
             (KeyCode::Char('D'), KeyModifiers::SHIFT) => Action::KillToEnd,
-            (KeyCode::Enter, KeyModifiers::NONE)
-            | (KeyCode::Char('\n'), KeyModifiers::NONE)
-            | (KeyCode::Char('\r'), KeyModifiers::NONE) => Action::Submit,
+            (KeyCode::Enter, _)
+            | (KeyCode::Char('\n'), _)
+            | (KeyCode::Char('\r'), _) => Action::Submit,
             (KeyCode::Char('c'), KeyModifiers::CONTROL) => Action::Interrupt,
             _ => Action::Noop,
         }
