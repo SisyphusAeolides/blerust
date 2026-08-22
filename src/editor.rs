@@ -1,6 +1,6 @@
 use std::io::{self, Stdout, Write};
 
-use crossterm::cursor::{self, MoveTo, MoveToColumn, RestorePosition, SavePosition};
+use crossterm::cursor::{self, MoveTo, MoveToColumn};
 use crossterm::event::{self, Event};
 use crossterm::style::{Color, Print, PrintStyledContent, ResetColor, SetForegroundColor, StyledContent};
 use crossterm::terminal::{self, Clear, ClearType};
@@ -110,7 +110,7 @@ impl LineEditor {
                     match action {
                         Action::Submit => {
                             let line = self.buffer.as_str();
-                            self.clear_completion_menu()?;
+                            self.completion_menu = None;
                             self.render_line_final(prompt)?;
                             if !line.trim().is_empty() {
                                 self.history.add(&line);
@@ -118,14 +118,14 @@ impl LineEditor {
                             return Ok(ReadlineResult::Success(line));
                         }
                         Action::Interrupt => {
-                            self.clear_completion_menu()?;
+                            self.completion_menu = None;
                             self.stdout.queue(Print("^C\r\n"))?;
                             self.stdout.flush()?;
                             return Ok(ReadlineResult::Interrupt);
                         }
                         Action::Eof => {
                             if self.buffer.is_empty() {
-                                self.clear_completion_menu()?;
+                                self.completion_menu = None;
                                 self.stdout.queue(Print("\r\n"))?;
                                 self.stdout.flush()?;
                                 return Ok(ReadlineResult::Eof);
@@ -367,24 +367,29 @@ impl LineEditor {
         let rows_to_move_up = end_row_offset - target_row_offset;
 
         if let Some(ref candidates) = self.completion_menu {
-            self.stdout.queue(SavePosition)?;
             self.stdout.queue(Print("\r\n"))?;
             self.stdout.queue(Clear(ClearType::CurrentLine))?;
 
             let display_candidates: Vec<&str> = candidates.iter().take(8).map(|s| s.as_str()).collect();
-            let menu_str = display_candidates.join("   ");
-            self.stdout.queue(SetForegroundColor(Color::DarkCyan))?;
-            self.stdout.queue(Print("  [ "))?;
-            self.stdout.queue(SetForegroundColor(Color::Yellow))?;
-            self.stdout.queue(Print(menu_str))?;
-            if candidates.len() > 8 {
-                self.stdout.queue(SetForegroundColor(Color::DarkGrey))?;
-                self.stdout.queue(Print(format!(" ... +{} more", candidates.len() - 8)))?;
+            let mut menu_str = display_candidates.join("   ");
+            
+            let prefix = "  [ ";
+            let suffix_str = if candidates.len() > 8 { format!(" ... +{} more ]", candidates.len() - 8) } else { " ]".to_string() };
+            
+            let max_len = (cols as usize).saturating_sub(prefix.len() + suffix_str.len() + 1);
+            if menu_str.len() > max_len {
+                menu_str.truncate(max_len);
             }
+
             self.stdout.queue(SetForegroundColor(Color::DarkCyan))?;
-            self.stdout.queue(Print(" ]"))?;
+            self.stdout.queue(Print(prefix))?;
+            self.stdout.queue(SetForegroundColor(Color::Yellow))?;
+            self.stdout.queue(Print(&menu_str))?;
+            self.stdout.queue(SetForegroundColor(Color::DarkCyan))?;
+            self.stdout.queue(Print(&suffix_str))?;
             self.stdout.queue(ResetColor)?;
-            self.stdout.queue(RestorePosition)?;
+            
+            self.stdout.queue(cursor::MoveUp(1))?;
         }
         
         if rows_to_move_up > 0 {
@@ -393,17 +398,6 @@ impl LineEditor {
         self.stdout.queue(MoveToColumn(target_col_offset))?;
         self.rendered_row_offset = target_row_offset;
         self.stdout.flush()?;
-        Ok(())
-    }
-
-    fn clear_completion_menu(&mut self) -> io::Result<()> {
-        if self.completion_menu.is_some() {
-            self.stdout.queue(SavePosition)?;
-            self.stdout.queue(Print("\r\n"))?;
-            self.stdout.queue(Clear(ClearType::CurrentLine))?;
-            self.stdout.queue(RestorePosition)?;
-            self.completion_menu = None;
-        }
         Ok(())
     }
 
@@ -426,6 +420,7 @@ impl LineEditor {
         
         self.stdout.queue(ResetColor)?;
         self.stdout.queue(Print("\r\n"))?;
+        self.stdout.queue(Clear(ClearType::CurrentLine))?;
         self.stdout.flush()?;
         Ok(())
     }
