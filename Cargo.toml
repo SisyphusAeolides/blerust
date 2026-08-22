@@ -1,6 +1,6 @@
 [package]
 name = "blerust"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2024"
 description = "Blazing fast and robust line editor in Rust (replacement for blesh)"
 license = "MIT"
