@@ -61,7 +61,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     break;
                 }
 
-                if trimmed.starts_with("cd ") || trimmed == "cd" {
+                if !trimmed.contains(['\n', '\r'])
+                    && (trimmed.starts_with("cd ") || trimmed == "cd")
+                {
                     let target = if trimmed == "cd" {
                         env::var("HOME").unwrap_or_else(|_| "/".to_string())
                     } else {

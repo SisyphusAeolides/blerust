@@ -43,7 +43,6 @@ pub struct LineEditor {
     completion_menu: Option<Vec<String>>,
     rendered_row_offset: u16,
     prompt_rendered: bool,
-    paste_queue: Vec<String>,
 }
 
 pub enum ReadlineResult {
@@ -72,7 +71,6 @@ impl LineEditor {
             completion_menu: None,
             rendered_row_offset: 0,
             prompt_rendered: false,
-            paste_queue: Vec::new(),
         }
     }
 
@@ -81,18 +79,6 @@ impl LineEditor {
     }
 
     pub fn readline(&mut self, prompt: &str) -> io::Result<ReadlineResult> {
-        if !self.paste_queue.is_empty() {
-            let line = self.paste_queue.remove(0);
-            self.stdout.queue(Print(prompt))?;
-            self.stdout.queue(Print(&line))?;
-            self.stdout.queue(Print("\r\n"))?;
-            self.stdout.flush()?;
-            if !line.trim().is_empty() {
-                self.history.add(&line);
-            }
-            return Ok(ReadlineResult::Success(line));
-        }
-
         self.buffer.clear();
         self.history.reset_cursor();
         self.completion_menu = None;
@@ -123,31 +109,21 @@ impl LineEditor {
                     continue;
                 }
                 Event::Paste(text) => {
-                    let mut lines: Vec<&str> = text.split('\n').collect();
-                    if lines.is_empty() {
+                    let text = normalize_paste(&text);
+                    if text.is_empty() {
                         continue;
                     }
-                    
-                    let first_line = lines.remove(0);
-                    let first_line = first_line.replace('\r', "");
-                    
-                    for ch in first_line.chars() {
-                        self.buffer.insert_char(ch);
-                    }
-                    
-                    if !lines.is_empty() {
-                        for line in lines {
-                            let line = line.replace('\r', "");
-                            self.paste_queue.push(line);
-                        }
-                        
-                        let line_str = self.buffer.as_str();
+
+                    self.buffer.insert_str(&text);
+
+                    if text.contains('\n') {
+                        let command = self.buffer.as_str();
                         self.completion_menu = None;
-                        self.render_line_final(prompt)?;
-                        if !line_str.trim().is_empty() {
-                            self.history.add(&line_str);
+                        self.render_pasted_block_final(prompt, &command)?;
+                        if !command.trim().is_empty() {
+                            self.history.add(&command);
                         }
-                        return Ok(ReadlineResult::Success(line_str));
+                        return Ok(ReadlineResult::Success(command));
                     } else {
                         if self.config.tab_completion {
                             self.trigger_autocomplete();
@@ -516,5 +492,47 @@ impl LineEditor {
         self.stdout.queue(Clear(ClearType::CurrentLine))?;
         self.stdout.flush()?;
         Ok(())
+    }
+
+    fn render_pasted_block_final(&mut self, prompt: &str, command: &str) -> io::Result<()> {
+        self.stdout.queue(Print("\r"))?;
+        self.stdout.queue(Clear(ClearType::FromCursorDown))?;
+        self.stdout.queue(Print(prompt))?;
+        self.stdout.queue(Print(command.replace('\n', "\r\n")))?;
+        self.stdout.queue(ResetColor)?;
+        if !command.ends_with('\n') {
+            self.stdout.queue(Print("\r\n"))?;
+        }
+        self.stdout.flush()?;
+        Ok(())
+    }
+}
+
+fn normalize_paste(text: &str) -> String {
+    text.replace("\r\n", "\n").replace('\r', "\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_paste;
+
+    #[test]
+    fn preserves_multiple_commands_as_one_block() {
+        let pasted = "printf 'one\\n'\nprintf 'two\\n'\n";
+        assert_eq!(normalize_paste(pasted), pasted);
+    }
+
+    #[test]
+    fn normalizes_crlf_without_discarding_commands() {
+        assert_eq!(
+            normalize_paste("echo one\r\necho two\r\n"),
+            "echo one\necho two\n"
+        );
+    }
+
+    #[test]
+    fn preserves_heredoc_structure() {
+        let pasted = "cat <<'EOF'\nfirst\nsecond\nEOF\n";
+        assert_eq!(normalize_paste(pasted), pasted);
     }
 }
