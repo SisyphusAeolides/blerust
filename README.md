@@ -11,6 +11,50 @@ Designed as a modern, high-performance alternative to `ble.sh`.
 - **Modal Editing**: Emacs and Vi (Normal/Insert) key bindings.
 - **Multi-line Terminal Wrapping**: Gracefully handles long commands that wrap across terminal rows.
 
+## Installation
+
+### Via COPR (Fedora/RHEL)
+
+```sh
+dnf copr enable sisyphuscode/blerust
+dnf install blerust
+```
+
+After installing, run the setup command once to add blerust to your shell:
+
+```sh
+blerust --install
+```
+
+Then restart your terminal or source your shell config:
+
+```sh
+source ~/.bashrc
+```
+
+### From Source
+
+```sh
+cargo build --release
+sudo install -m 755 target/release/blerust /usr/local/bin/blerust
+blerust --install
+source ~/.bashrc
+```
+
+## Shell Setup
+
+The `blerust --install` command appends the following initialization snippet to
+`~/.bashrc`:
+
+```bash
+# blerust initialization
+if [[ $- == *i* && ${BLERUST_CHILD:-0} != 1 ]]; then exec blerust; fi
+```
+
+This replaces your interactive bash session with blerust on login, while
+keeping subshells (commands run by blerust itself) unaffected via the
+`BLERUST_CHILD` guard.
+
 ## Building
 ```sh
 cargo build --release

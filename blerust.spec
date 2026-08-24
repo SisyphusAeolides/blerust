@@ -29,6 +29,20 @@ install -pm 755 target/release/%{name} %{buildroot}%{_bindir}/%{name}
 %doc README.md
 %{_bindir}/%{name}
 
+%post
+if [ $1 -eq 1 ]; then
+    %{_bindir}/%{name} --install || true
+fi
+
+%preun
+if [ $1 -eq 0 ]; then
+    HOME_DIR=$(eval echo ~$(logname 2>/dev/null || echo $SUDO_USER || echo $USER))
+    BASHRC="$HOME_DIR/.bashrc"
+    if [ -f "$BASHRC" ]; then
+        sed -i '/# blerust initialization/,/exec blerust/d' "$BASHRC"
+    fi
+fi
+
 %changelog
 * Sat Aug 22 2026 Kenny Glowner <SisyphusAeolides@pm.me> - 0.1.12-1
 - Keep multiline paste editable until the user explicitly presses Enter
