@@ -1,4 +1,4 @@
-use std::io::{self, Stdout, Write};
+use std::io::{self, Stderr, Write};
 
 use crossterm::QueueableCommand;
 use crossterm::cursor::{self, MoveTo, MoveToColumn};
@@ -39,7 +39,7 @@ pub struct LineEditor {
     completer: Completer,
     keymap: Keymap,
     config: EditorConfig,
-    stdout: Stdout,
+    stderr: Stderr,
     completion_menu: Option<Vec<String>>,
     rendered_row_offset: u16,
     prompt_rendered: bool,
@@ -67,7 +67,7 @@ impl LineEditor {
             completer: Completer::new(),
             keymap: Keymap { mode },
             config,
-            stdout: io::stdout(),
+            stderr: io::stderr(),
             completion_menu: None,
             rendered_row_offset: 0,
             prompt_rendered: false,
@@ -86,14 +86,14 @@ impl LineEditor {
         self.rendered_row_offset = 0;
 
         terminal::enable_raw_mode()?;
-        let _ = self.stdout.queue(crossterm::event::EnableBracketedPaste);
+        let _ = self.stderr.queue(crossterm::event::EnableBracketedPaste);
 
         let res = self.readline_loop(prompt);
 
-        let _ = self.stdout.queue(crossterm::event::DisableBracketedPaste);
+        let _ = self.stderr.queue(crossterm::event::DisableBracketedPaste);
         let _ = terminal::disable_raw_mode();
-        let _ = self.stdout.queue(ResetColor);
-        let _ = self.stdout.flush();
+        let _ = self.stderr.queue(ResetColor);
+        let _ = self.stderr.flush();
 
         res
     }
@@ -138,15 +138,15 @@ impl LineEditor {
                         }
                         Action::Interrupt => {
                             self.completion_menu = None;
-                            self.stdout.queue(Print("^C\r\n"))?;
-                            self.stdout.flush()?;
+                            self.stderr.queue(Print("^C\r\n"))?;
+                            self.stderr.flush()?;
                             return Ok(ReadlineResult::Interrupt);
                         }
                         Action::Eof => {
                             if self.buffer.is_empty() {
                                 self.completion_menu = None;
-                                self.stdout.queue(Print("\r\n"))?;
-                                self.stdout.flush()?;
+                                self.stderr.queue(Print("\r\n"))?;
+                                self.stderr.flush()?;
                                 return Ok(ReadlineResult::Eof);
                             }
                         }
@@ -219,8 +219,8 @@ impl LineEditor {
                             self.buffer.redo();
                         }
                         Action::ClearScreen => {
-                            self.stdout.queue(Clear(ClearType::All))?;
-                            self.stdout.queue(MoveTo(0, 0))?;
+                            self.stderr.queue(Clear(ClearType::All))?;
+                            self.stderr.queue(MoveTo(0, 0))?;
                         }
                         Action::AcceptSuggestion => {
                             if self.config.auto_suggestion
@@ -378,30 +378,30 @@ impl LineEditor {
 
         if self.prompt_rendered {
             if self.rendered_row_offset > 0 {
-                self.stdout
+                self.stderr
                     .queue(cursor::MoveUp(self.rendered_row_offset))?;
             }
-            self.stdout.queue(Print("\r"))?;
-            self.stdout.queue(MoveToColumn(prompt_width as u16))?;
-            self.stdout.queue(Clear(ClearType::FromCursorDown))?;
+            self.stderr.queue(Print("\r"))?;
+            self.stderr.queue(MoveToColumn(prompt_width as u16))?;
+            self.stderr.queue(Clear(ClearType::FromCursorDown))?;
         } else {
-            self.stdout.queue(Print("\r"))?;
-            self.stdout.queue(Clear(ClearType::FromCursorDown))?;
-            self.stdout.queue(Print(prompt))?;
+            self.stderr.queue(Print("\r"))?;
+            self.stderr.queue(Clear(ClearType::FromCursorDown))?;
+            self.stderr.queue(Print(prompt))?;
             self.prompt_rendered = true;
         }
 
         if self.config.syntax_highlighting {
             let spans = self.highlighter.highlight(&line);
             for span in spans {
-                self.stdout.queue(PrintStyledContent(StyledContent::new(
+                self.stderr.queue(PrintStyledContent(StyledContent::new(
                     span.style,
                     span.text.replace('\n', "\r\n"),
                 )))?;
-                self.stdout.queue(ResetColor)?;
+                self.stderr.queue(ResetColor)?;
             }
         } else {
-            self.stdout.queue(Print(line.replace('\n', "\r\n")))?;
+            self.stderr.queue(Print(line.replace('\n', "\r\n")))?;
         }
 
         let mut suffix_len = 0;
@@ -411,9 +411,9 @@ impl LineEditor {
             && let Some(suffix) = self.history.suggest_suffix(&line)
         {
             suffix_len = unicode_width::UnicodeWidthStr::width(suffix.as_str());
-            self.stdout.queue(SetForegroundColor(Color::DarkGrey))?;
-            self.stdout.queue(Print(&suffix))?;
-            self.stdout.queue(ResetColor)?;
+            self.stderr.queue(SetForegroundColor(Color::DarkGrey))?;
+            self.stderr.queue(Print(&suffix))?;
+            self.stderr.queue(ResetColor)?;
         }
 
         let (cols, _rows) = terminal::size().unwrap_or((80, 24));
@@ -428,8 +428,8 @@ impl LineEditor {
         let rows_to_move_up = end_row_offset - target_row_offset;
 
         if let Some(ref candidates) = self.completion_menu {
-            self.stdout.queue(Print("\r\n"))?;
-            self.stdout.queue(Clear(ClearType::CurrentLine))?;
+            self.stderr.queue(Print("\r\n"))?;
+            self.stderr.queue(Clear(ClearType::CurrentLine))?;
 
             let display_candidates: Vec<&str> =
                 candidates.iter().take(8).map(|s| s.as_str()).collect();
@@ -447,23 +447,23 @@ impl LineEditor {
                 menu_str.truncate(max_len);
             }
 
-            self.stdout.queue(SetForegroundColor(Color::DarkCyan))?;
-            self.stdout.queue(Print(prefix))?;
-            self.stdout.queue(SetForegroundColor(Color::Yellow))?;
-            self.stdout.queue(Print(&menu_str))?;
-            self.stdout.queue(SetForegroundColor(Color::DarkCyan))?;
-            self.stdout.queue(Print(&suffix_str))?;
-            self.stdout.queue(ResetColor)?;
+            self.stderr.queue(SetForegroundColor(Color::DarkCyan))?;
+            self.stderr.queue(Print(prefix))?;
+            self.stderr.queue(SetForegroundColor(Color::Yellow))?;
+            self.stderr.queue(Print(&menu_str))?;
+            self.stderr.queue(SetForegroundColor(Color::DarkCyan))?;
+            self.stderr.queue(Print(&suffix_str))?;
+            self.stderr.queue(ResetColor)?;
 
-            self.stdout.queue(cursor::MoveUp(1))?;
+            self.stderr.queue(cursor::MoveUp(1))?;
         }
 
         if rows_to_move_up > 0 {
-            self.stdout.queue(cursor::MoveUp(rows_to_move_up))?;
+            self.stderr.queue(cursor::MoveUp(rows_to_move_up))?;
         }
-        self.stdout.queue(MoveToColumn(target_col_offset))?;
+        self.stderr.queue(MoveToColumn(target_col_offset))?;
         self.rendered_row_offset = target_row_offset;
-        self.stdout.flush()?;
+        self.stderr.flush()?;
         Ok(())
     }
 
@@ -479,14 +479,14 @@ impl LineEditor {
             visual_position(&line, self.buffer.len(), prompt_width, cols as usize);
 
         if end_row_offset > target_row_offset {
-            self.stdout
+            self.stderr
                 .queue(cursor::MoveDown(end_row_offset - target_row_offset))?;
         }
 
-        self.stdout.queue(ResetColor)?;
-        self.stdout.queue(Print("\r\n"))?;
-        self.stdout.queue(Clear(ClearType::CurrentLine))?;
-        self.stdout.flush()?;
+        self.stderr.queue(ResetColor)?;
+        self.stderr.queue(Print("\r\n"))?;
+        self.stderr.queue(Clear(ClearType::CurrentLine))?;
+        self.stderr.flush()?;
         Ok(())
     }
 }

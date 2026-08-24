@@ -28,7 +28,7 @@ impl History {
         };
 
         if let Some(home) = env::var_os("HOME") {
-            let path = PathBuf::from(home).join(".blerust_history");
+            let path = PathBuf::from(home).join(".bash_history");
             let _ = history.load_from_file(&path);
             history.file_path = Some(path);
         }

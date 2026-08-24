@@ -12,20 +12,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.len() > 1 && args[1] == "--install" {
         let home = env::var("HOME").expect("HOME directory not found");
         let bashrc_path = PathBuf::from(&home).join(".bashrc");
-        let inject_str = "\n# blerust initialization\nif [[ $- == *i* && ${BLERUST_CHILD:-0} != 1 ]]; then exec blerust; fi\n";
+        let inject_str = r#"
+# blerust initialization (persistent bash wrapper)
+if [[ $- == *i* && -z "$BLERUST_ACTIVE" ]]; then
+    export BLERUST_ACTIVE=1
+    _blerust_loop() {
+        # Disable default prompt to let blerust draw it
+        PS1=""
+        PROMPT_COMMAND=""
+        while true; do
+            local cmd
+            cmd=$(blerust --readline)
+            local ret=$?
+            
+            # EOF
+            if [ $ret -eq 2 ]; then
+                exit
+            fi
+            
+            if [[ -n "$cmd" ]]; then
+                history -s "$cmd"
+                eval "$cmd"
+            fi
+        done
+    }
+    _blerust_loop
+    exit
+fi
+"#;
 
         let contents = fs::read_to_string(&bashrc_path).unwrap_or_default();
-        if contents.contains("exec blerust")
-            || contents.contains("blerust") && !contents.contains("fastfetch")
-        {
-            // Need a smarter check, just seeing if 'exec blerust' or 'blerust' is at the bottom
-            if contents.contains("exec blerust")
-                || contents.contains("\nblerust\n")
-                || contents.ends_with("\nblerust")
-            {
-                println!("blerust is already configured in ~/.bashrc");
-                return Ok(());
-            }
+        if contents.contains("BLERUST_ACTIVE") || contents.contains("_blerust_loop") {
+            println!("blerust loop is already configured in ~/.bashrc");
+            return Ok(());
         }
 
         let mut file = OpenOptions::new()
@@ -47,83 +66,63 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let mut editor = LineEditor::new(config);
 
+    if args.len() > 1 && args[1] == "--readline" {
+        let prompt_str = prompt::get_prompt();
+        match editor.readline(&prompt_str)? {
+            ReadlineResult::Success(line) => {
+                print!("{}", line);
+                std::process::exit(0);
+            }
+            ReadlineResult::Interrupt => {
+                std::process::exit(1);
+            }
+            ReadlineResult::Eof => {
+                std::process::exit(2);
+            }
+        }
+    }
+
+    // Fallback: the old standalone shell loop just in case
     loop {
         let prompt_str = prompt::get_prompt();
-
         match editor.readline(&prompt_str)? {
             ReadlineResult::Success(line) => {
                 let trimmed = line.trim();
-                if trimmed.is_empty() {
-                    continue;
-                }
-
-                if trimmed == "exit" || trimmed == "quit" {
-                    break;
-                }
-
-                if !trimmed.contains(['\n', '\r'])
-                    && (trimmed.starts_with("cd ") || trimmed == "cd")
-                {
+                if trimmed.is_empty() { continue; }
+                if trimmed == "exit" || trimmed == "quit" { break; }
+                if !trimmed.contains(['\n', '\r']) && (trimmed.starts_with("cd ") || trimmed == "cd") {
                     let target = if trimmed == "cd" {
                         env::var("HOME").unwrap_or_else(|_| "/".to_string())
                     } else {
                         trimmed[3..].trim().to_string()
                     };
-
                     let path = if target.starts_with('~') {
                         if let Ok(home) = env::var("HOME") {
                             target.replacen('~', &home, 1)
-                        } else {
-                            target
-                        }
-                    } else {
-                        target
-                    };
-
+                        } else { target }
+                    } else { target };
                     if let Err(e) = env::set_current_dir(&path) {
                         eprintln!("cd: {}: {}", path, e);
                     }
                     continue;
                 }
-
-                // Source the user's normal shell environment for each command
-                // without starting another blerust instance.  This preserves
-                // aliases such as `ls --color=auto` while keeping the editor
-                // process itself responsive.
+                
                 let child_command = format!("unset BLERUST_CHILD; {trimmed}");
                 let mut command = Command::new("bash");
-                command
-                    .arg("-c")
-                    .arg(child_command)
-                    .env("BLERUST_CHILD", "1");
+                command.arg("-c").arg(child_command).env("BLERUST_CHILD", "1");
                 if let Ok(home) = env::var("HOME") {
                     let bashrc = PathBuf::from(home).join(".bashrc");
                     if bashrc.is_file() {
                         command.env("BASH_ENV", bashrc);
                     }
                 }
-                let status = command.status();
-
-                match status {
-                    Ok(s) => {
-                        if !s.success()
-                            && let Some(code) = s.code()
-                        {
-                            eprintln!("Process exited with status: {}", code);
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("Execution error: {}", e);
-                    }
+                match command.status() {
+                    Ok(s) => if !s.success() && let Some(code) = s.code() { eprintln!("Process exited with status: {}", code); }
+                    Err(e) => eprintln!("Execution error: {}", e),
                 }
             }
-            ReadlineResult::Interrupt => {
-                continue;
-            }
-            ReadlineResult::Eof => {
-                println!("exit");
-                break;
-            }
+            ReadlineResult::Interrupt => continue,
+            ReadlineResult::Eof => { println!("exit"); break; }
         }
     }
 

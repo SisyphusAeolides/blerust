@@ -1,6 +1,6 @@
 %global debug_package %{nil}
 Name:           blerust
-Version:        0.1.13
+Version:        0.1.14
 Release:        1%{?dist}
 Summary:        Blazing fast and robust line editor in Rust
 
@@ -44,6 +44,10 @@ if [ $1 -eq 0 ]; then
 fi
 
 %changelog
+* Sun Aug 23 2026 Kenny Glowner <SisyphusAeolides@pm.me> - 0.1.14-1
+- refactor: use native bash wrapper loop to support state persistence, aliases, and job control
+- fix: share ~/.bash_history instead of using isolated history file
+
 * Sun Aug 23 2026 Kenny Glowner <SisyphusAeolides@pm.me> - 0.1.13-1
 - fix: restore raw terminal carriage returns and correct prompt layout
 
