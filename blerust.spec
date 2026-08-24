@@ -1,6 +1,6 @@
 %global debug_package %{nil}
 Name:           blerust
-Version:        0.1.12
+Version:        0.1.13
 Release:        1%{?dist}
 Summary:        Blazing fast and robust line editor in Rust
 
@@ -44,6 +44,9 @@ if [ $1 -eq 0 ]; then
 fi
 
 %changelog
+* Sun Aug 23 2026 Kenny Glowner <SisyphusAeolides@pm.me> - 0.1.13-1
+- fix: restore raw terminal carriage returns and correct prompt layout
+
 * Sat Aug 22 2026 Kenny Glowner <SisyphusAeolides@pm.me> - 0.1.12-1
 - Keep multiline paste editable until the user explicitly presses Enter
 
