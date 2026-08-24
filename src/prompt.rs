@@ -3,10 +3,12 @@ use std::fs;
 use std::process::Command;
 
 pub fn get_prompt() -> String {
-    let c_rocky = "\x1b[1;38;2;0;168;107m";
-    let c_amber = "\x1b[1;38;5;214m";
-    let c_ciq_blue = "\x1b[1;38;2;42;115;212m";
-    let c_path = "\x1b[1;38;5;75m";
+    // Warm Golden Yellow (#d79921) — frame, @, :, ╭─, ╰─λ
+    let c_yellow = "\x1b[1;38;2;215;153;33m";
+    // Adwaita Blue (#78aeed) — user, host, git branch
+    let c_blue = "\x1b[1;34m";
+    // Adwaita Teal (#2ec27e) — current directory path
+    let c_teal = "\x1b[1;38;2;46;194;126m";
     let c_reset = "\x1b[0m";
     let c_bold = "\x1b[1m";
 
@@ -33,24 +35,25 @@ pub fn get_prompt() -> String {
     {
         let branch = String::from_utf8_lossy(&out.stdout).trim().to_string();
         if !branch.is_empty() {
-            git_info = format!(" ({}{}{})", c_ciq_blue, branch, c_rocky);
+            git_info = format!(" ({}{}{})", c_blue, branch, c_yellow);
         }
     }
 
     format!(
-        "\r\n{}╭─ {} {}{}@{}{}{} : {} {} {}{}\r\n{}╰─λ {}{}",
-        c_amber,
-        c_rocky,
+        "\r\n{}╭─  {}{}{}@{}{}{} : {}{} {}{}{}\r\n{}╰─λ {}{}",
+        c_yellow,   // ╭─
+        c_blue,     //  (Fedora glyph)
         user,
-        c_amber,
-        c_rocky,
+        c_yellow,   // @
+        c_blue,
         host,
-        c_amber,
-        c_path,
+        c_yellow,   // :
+        c_teal,
         cwd,
-        c_rocky,
+        c_yellow,   // git accent base color
         git_info,
-        c_amber,
+        c_reset,
+        c_yellow,   // ╰─λ
         c_reset,
         c_bold
     )
