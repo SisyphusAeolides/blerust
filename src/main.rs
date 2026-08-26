@@ -13,23 +13,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let home = env::var("HOME").expect("HOME directory not found");
         let bashrc_path = PathBuf::from(&home).join(".bashrc");
         let inject_str = r#"
+# blerust prompt appearance — edit these to match your theme.
+# All values are optional; omitting one uses the built-in default.
+# Colors are raw ANSI escape sequences. Icons require a Nerd Font;
+# leave them empty ("") for a clean prompt on any terminal.
+#
+# export BLERUST_FRAME_COLOR=$'\e[1;33m'    # ╭─ frame and ╰─λ color  (default: bold yellow)
+# export BLERUST_USER_COLOR=$'\e[1;34m'     # user@host color          (default: bold blue)
+# export BLERUST_PATH_COLOR=$'\e[1;36m'     # working directory color  (default: bold cyan)
+# export BLERUST_GIT_COLOR=$'\e[1;34m'      # git branch color         (default: BLERUST_USER_COLOR)
+# export BLERUST_ICON_COLOR=$'\e[1;34m'     # OS icon color            (default: BLERUST_USER_COLOR)
+# export BLERUST_FOLDER_COLOR=$'\e[1;31m'   # folder icon color        (default: bold red)
+# export BLERUST_OS_ICON=''                 # OS glyph, e.g. $'\uf303' for Arch
+# export BLERUST_FOLDER_ICON=''             # folder glyph, e.g. $'\uf07b'
+
 # blerust initialization (persistent bash wrapper)
 if [[ $- == *i* && -z "$BLERUST_ACTIVE" ]]; then
     export BLERUST_ACTIVE=1
     _blerust_loop() {
-        # Disable default prompt to let blerust draw it
         PS1=""
         PROMPT_COMMAND=""
         while true; do
             local cmd
             cmd=$(blerust --readline)
             local ret=$?
-            
-            # EOF
             if [ $ret -eq 2 ]; then
                 exit
             fi
-            
             if [[ -n "$cmd" ]]; then
                 history -s "$cmd"
                 eval "$cmd"
