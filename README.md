@@ -13,11 +13,22 @@ Designed as a modern, high-performance alternative to `ble.sh`.
 
 ## Installation
 
-### Via COPR (Fedora/RHEL)
+### ArachOS RPM/DNF repository
+
+Install the ArachOS package from the configured repository:
 
 ```sh
-dnf copr enable sisyphuscode/blerust
-dnf install blerust
+sudo dnf5 install blerust
+```
+
+For a local build repository, use `dnf5 --repofrompath=arachos,/path/to/repo`
+with the install command.
+
+### RPM-compatible systems
+
+```sh
+dnf5 copr enable sisyphuscode/blerust
+dnf5 install blerust
 ```
 
 After installing, run the setup command once to add blerust to your shell:
