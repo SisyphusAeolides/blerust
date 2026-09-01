@@ -18,17 +18,17 @@ Designed as a modern, high-performance alternative to `ble.sh`.
 Install the ArachOS package from the configured repository:
 
 ```sh
-sudo dnf5 install blerust
+sudo dnf install blerust
 ```
 
-For a local build repository, use `dnf5 --repofrompath=arachos,/path/to/repo`
+For a local build repository, use `dnf --repofrompath=arachos,/path/to/repo`
 with the install command.
 
 ### RPM-compatible systems
 
 ```sh
-dnf5 copr enable sisyphuscode/blerust
-dnf5 install blerust
+dnf copr enable sisyphuscode/blerust
+dnf install blerust
 ```
 
 After installing, run the setup command once to add blerust to your shell:
