@@ -98,9 +98,15 @@ fi
         match editor.readline(&prompt_str)? {
             ReadlineResult::Success(line) => {
                 let trimmed = line.trim();
-                if trimmed.is_empty() { continue; }
-                if trimmed == "exit" || trimmed == "quit" { break; }
-                if !trimmed.contains(['\n', '\r']) && (trimmed.starts_with("cd ") || trimmed == "cd") {
+                if trimmed.is_empty() {
+                    continue;
+                }
+                if trimmed == "exit" || trimmed == "quit" {
+                    break;
+                }
+                if !trimmed.contains(['\n', '\r'])
+                    && (trimmed.starts_with("cd ") || trimmed == "cd")
+                {
                     let target = if trimmed == "cd" {
                         env::var("HOME").unwrap_or_else(|_| "/".to_string())
                     } else {
@@ -109,17 +115,24 @@ fi
                     let path = if target.starts_with('~') {
                         if let Ok(home) = env::var("HOME") {
                             target.replacen('~', &home, 1)
-                        } else { target }
-                    } else { target };
+                        } else {
+                            target
+                        }
+                    } else {
+                        target
+                    };
                     if let Err(e) = env::set_current_dir(&path) {
                         eprintln!("cd: {}: {}", path, e);
                     }
                     continue;
                 }
-                
+
                 let child_command = format!("unset BLERUST_CHILD; {trimmed}");
                 let mut command = Command::new("bash");
-                command.arg("-c").arg(child_command).env("BLERUST_CHILD", "1");
+                command
+                    .arg("-c")
+                    .arg(child_command)
+                    .env("BLERUST_CHILD", "1");
                 if let Ok(home) = env::var("HOME") {
                     let bashrc = PathBuf::from(home).join(".bashrc");
                     if bashrc.is_file() {
@@ -127,12 +140,21 @@ fi
                     }
                 }
                 match command.status() {
-                    Ok(s) => if !s.success() && let Some(code) = s.code() { eprintln!("Process exited with status: {}", code); }
+                    Ok(s) => {
+                        if !s.success()
+                            && let Some(code) = s.code()
+                        {
+                            eprintln!("Process exited with status: {}", code);
+                        }
+                    }
                     Err(e) => eprintln!("Execution error: {}", e),
                 }
             }
             ReadlineResult::Interrupt => continue,
-            ReadlineResult::Eof => { println!("exit"); break; }
+            ReadlineResult::Eof => {
+                println!("exit");
+                break;
+            }
         }
     }
 

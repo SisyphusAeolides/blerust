@@ -7,24 +7,18 @@ pub fn get_prompt() -> String {
     // Defaults are plain bold ANSI colors — no Nerd Fonts required.
     // Set these in ~/.bashrc to match your personal theme.
 
-    let c_frame  = env::var("BLERUST_FRAME_COLOR")
-        .unwrap_or_else(|_| "\x1b[1;33m".to_string());   // bold yellow
-    let c_user   = env::var("BLERUST_USER_COLOR")
-        .unwrap_or_else(|_| "\x1b[1;34m".to_string());   // bold blue
-    let c_path   = env::var("BLERUST_PATH_COLOR")
-        .unwrap_or_else(|_| "\x1b[1;36m".to_string());   // bold cyan
-    let c_git    = env::var("BLERUST_GIT_COLOR")
-        .unwrap_or_else(|_| c_user.clone());
-    let c_icon   = env::var("BLERUST_ICON_COLOR")
-        .unwrap_or_else(|_| c_user.clone());
-    let c_folder = env::var("BLERUST_FOLDER_COLOR")
-        .unwrap_or_else(|_| "\x1b[1;31m".to_string());   // bold red
-    let c_reset  = "\x1b[0m";
-    let c_bold   = "\x1b[1m";
+    let c_frame = env::var("BLERUST_FRAME_COLOR").unwrap_or_else(|_| "\x1b[1;33m".to_string()); // bold yellow
+    let c_user = env::var("BLERUST_USER_COLOR").unwrap_or_else(|_| "\x1b[1;34m".to_string()); // bold blue
+    let c_path = env::var("BLERUST_PATH_COLOR").unwrap_or_else(|_| "\x1b[1;36m".to_string()); // bold cyan
+    let c_git = env::var("BLERUST_GIT_COLOR").unwrap_or_else(|_| c_user.clone());
+    let c_icon = env::var("BLERUST_ICON_COLOR").unwrap_or_else(|_| c_user.clone());
+    let c_folder = env::var("BLERUST_FOLDER_COLOR").unwrap_or_else(|_| "\x1b[1;31m".to_string()); // bold red
+    let c_reset = "\x1b[0m";
+    let c_bold = "\x1b[1m";
 
     // Icon glyphs — empty by default so the prompt works without Nerd Fonts.
     // Set in ~/.bashrc to any character or Nerd Font glyph you prefer.
-    let os_icon     = env::var("BLERUST_OS_ICON").unwrap_or_default();
+    let os_icon = env::var("BLERUST_OS_ICON").unwrap_or_default();
     let folder_icon = env::var("BLERUST_FOLDER_ICON").unwrap_or_default();
 
     let os_prefix = if os_icon.is_empty() {
