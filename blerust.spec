@@ -44,30 +44,30 @@ if [ $1 -eq 0 ]; then
 fi
 
 %changelog
-* Tue Aug 26 2026 Kenny Glowner <SisyphusAeolides@pm.me> - 0.1.16-1
+* Tue Aug 26 2026 Kenny Glauner <SisyphusAeolides@pm.me> - 0.1.16-1
 - refactor: remove all hardcoded appearance from prompt; all colors and icons now read from BLERUST_* environment variables set in ~/.bashrc
 
-* Sun Aug 23 2026 Kenny Glowner <SisyphusAeolides@pm.me> - 0.1.15-1
+* Sun Aug 23 2026 Kenny Glauner <SisyphusAeolides@pm.me> - 0.1.15-1
 - feat: auto-detect OS from /etc/os-release to dynamically display the correct Linux distro Nerd Font glyph in the prompt
 
-* Sun Aug 23 2026 Kenny Glowner <SisyphusAeolides@pm.me> - 0.1.14-1
+* Sun Aug 23 2026 Kenny Glauner <SisyphusAeolides@pm.me> - 0.1.14-1
 - refactor: use native bash wrapper loop to support state persistence, aliases, and job control
 - fix: share ~/.bash_history instead of using isolated history file
 
-* Sun Aug 23 2026 Kenny Glowner <SisyphusAeolides@pm.me> - 0.1.13-1
+* Sun Aug 23 2026 Kenny Glauner <SisyphusAeolides@pm.me> - 0.1.13-1
 - fix: restore raw terminal carriage returns and correct prompt layout
 
-* Sat Aug 22 2026 Kenny Glowner <SisyphusAeolides@pm.me> - 0.1.12-1
+* Sat Aug 22 2026 Kenny Glauner <SisyphusAeolides@pm.me> - 0.1.12-1
 - Keep multiline paste editable until the user explicitly presses Enter
 
-* Sat Aug 22 2026 Kenny Glowner <SisyphusAeolides@pm.me> - 0.1.11-1
+* Sat Aug 22 2026 Kenny Glauner <SisyphusAeolides@pm.me> - 0.1.11-1
 - Suppress history suggestions while literal paste input is rendered
 
-* Sat Aug 22 2026 Kenny Glowner <SisyphusAeolides@pm.me> - 0.1.10-1
+* Sat Aug 22 2026 Kenny Glauner <SisyphusAeolides@pm.me> - 0.1.10-1
 - Keep completion disabled while bracketed paste input is handled
 
-* Sat Aug 22 2026 Kenny Glowner <SisyphusAeolides@pm.me> - 0.1.9-1
+* Sat Aug 22 2026 Kenny Glauner <SisyphusAeolides@pm.me> - 0.1.9-1
 - Preserve and execute pasted multi-command shell blocks atomically
 
-* Sat Aug 22 2026 Kenny Glowner <SisyphusAeolides@pm.me> - 0.1.0-1
+* Sat Aug 22 2026 Kenny Glauner <SisyphusAeolides@pm.me> - 0.1.0-1
 - Initial release
