@@ -23,11 +23,21 @@ sudo pacman -S blerust
 
 Local packages are built and indexed by the ArachOS `build-packages` target.
 
-### RPM-compatible systems
+### Arch-based systems
+
+The Sisyphus repository publishes the Arch package used by ArachOS and other
+supported Arch-based systems. Add the repository to `/etc/pacman.conf`, then
+install the package:
+
+```ini
+[sisyphus]
+SigLevel = Optional TrustAll
+Server = https://sisyphusaeolides.github.io/Sisyphus-Repo/$arch
+```
 
 ```sh
-dnf copr enable sisyphuscode/blerust
-dnf install blerust
+sudo pacman -Syy
+sudo pacman -S blerust
 ```
 
 After installing, run the setup command once to add blerust to your shell:
