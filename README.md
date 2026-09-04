@@ -31,7 +31,7 @@ install the package:
 
 ```ini
 [sisyphus]
-SigLevel = Optional TrustAll
+SigLevel = Required DatabaseRequired
 Server = https://sisyphusaeolides.github.io/Sisyphus-Repo/$arch
 ```
 
