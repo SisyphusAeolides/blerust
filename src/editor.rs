@@ -1,0 +1,552 @@
+use std::io::{self, Stderr, Write};
+
+use crossterm::QueueableCommand;
+use crossterm::cursor::{self, MoveTo, MoveToColumn};
+use crossterm::event::{self, Event};
+use crossterm::style::{
+    Color, Print, PrintStyledContent, ResetColor, SetForegroundColor, StyledContent,
+};
+use crossterm::terminal::{self, Clear, ClearType};
+
+use crate::buffer::LineBuffer;
+use crate::completion::Completer;
+use crate::highlight::SyntaxHighlighter;
+use crate::history::History;
+use crate::keymap::{Action, EditMode, Keymap};
+
+pub struct EditorConfig {
+    pub auto_suggestion: bool,
+    pub syntax_highlighting: bool,
+    pub tab_completion: bool,
+    pub edit_mode: EditMode,
+}
+
+impl Default for EditorConfig {
+    fn default() -> Self {
+        Self {
+            auto_suggestion: true,
+            syntax_highlighting: true,
+            tab_completion: true,
+            edit_mode: EditMode::Emacs,
+        }
+    }
+}
+
+pub struct LineEditor {
+    buffer: LineBuffer,
+    history: History,
+    highlighter: SyntaxHighlighter,
+    completer: Completer,
+    keymap: Keymap,
+    config: EditorConfig,
+    stderr: Stderr,
+    completion_menu: Option<Vec<String>>,
+    rendered_row_offset: u16,
+    prompt_rendered: bool,
+}
+
+pub enum ReadlineResult {
+    Success(String),
+    Eof,
+    Interrupt,
+}
+
+impl Default for LineEditor {
+    fn default() -> Self {
+        Self::new(EditorConfig::default())
+    }
+}
+
+impl LineEditor {
+    pub fn new(config: EditorConfig) -> Self {
+        let mode = config.edit_mode;
+        Self {
+            buffer: LineBuffer::new(),
+            history: History::new(),
+            highlighter: SyntaxHighlighter::new(),
+            completer: Completer::new(),
+            keymap: Keymap { mode },
+            config,
+            stderr: io::stderr(),
+            completion_menu: None,
+            rendered_row_offset: 0,
+            prompt_rendered: false,
+        }
+    }
+
+    pub fn history_mut(&mut self) -> &mut History {
+        &mut self.history
+    }
+
+    pub fn readline(&mut self, prompt: &str) -> io::Result<ReadlineResult> {
+        self.buffer.clear();
+        self.history.reset_cursor();
+        self.completion_menu = None;
+        self.prompt_rendered = false;
+        self.rendered_row_offset = 0;
+
+        terminal::enable_raw_mode()?;
+        let _ = self.stderr.queue(crossterm::event::EnableBracketedPaste);
+
+        let res = self.readline_loop(prompt);
+
+        let _ = self.stderr.queue(crossterm::event::DisableBracketedPaste);
+        let _ = terminal::disable_raw_mode();
+        let _ = self.stderr.queue(ResetColor);
+        let _ = self.stderr.flush();
+
+        res
+    }
+
+    fn readline_loop(&mut self, prompt: &str) -> io::Result<ReadlineResult> {
+        self.render(prompt)?;
+
+        loop {
+            let evt = event::read()?;
+            match evt {
+                Event::Resize(_cols, _rows) => {
+                    self.render(prompt)?;
+                    continue;
+                }
+                Event::Paste(text) => {
+                    let text = normalize_paste(&text);
+                    if text.is_empty() {
+                        continue;
+                    }
+
+                    self.buffer.insert_str(&text);
+
+                    // Pasted text is literal editable input. Completion and
+                    // history suggestions resume on the next typed edit, and
+                    // even a multiline paste waits for an explicit submit.
+                    self.completion_menu = None;
+                    self.render_literal_paste(prompt)?;
+                    continue;
+                }
+                Event::Key(key_event) => {
+                    let action = self.keymap.handle_key(key_event);
+
+                    match action {
+                        Action::Submit => {
+                            let line = self.buffer.as_str();
+                            self.completion_menu = None;
+                            self.render_line_final(prompt)?;
+                            if !line.trim().is_empty() {
+                                self.history.add(&line);
+                            }
+                            return Ok(ReadlineResult::Success(line));
+                        }
+                        Action::Interrupt => {
+                            self.completion_menu = None;
+                            self.stderr.queue(Print("^C\r\n"))?;
+                            self.stderr.flush()?;
+                            return Ok(ReadlineResult::Interrupt);
+                        }
+                        Action::Eof => {
+                            if self.buffer.is_empty() {
+                                self.completion_menu = None;
+                                self.stderr.queue(Print("\r\n"))?;
+                                self.stderr.flush()?;
+                                return Ok(ReadlineResult::Eof);
+                            }
+                        }
+                        Action::InsertChar(ch) => {
+                            self.buffer.insert_char(ch);
+                            if self.config.tab_completion {
+                                self.trigger_autocomplete();
+                            } else {
+                                self.completion_menu = None;
+                            }
+                        }
+                        Action::Backspace => {
+                            self.buffer.backspace();
+                            if self.config.tab_completion {
+                                self.trigger_autocomplete();
+                            } else {
+                                self.completion_menu = None;
+                            }
+                        }
+                        Action::Delete => {
+                            self.completion_menu = None;
+                            self.buffer.delete();
+                        }
+                        Action::MoveLeft => {
+                            self.completion_menu = None;
+                            self.buffer.move_cursor_left();
+                        }
+                        Action::MoveRight => {
+                            self.completion_menu = None;
+                            self.buffer.move_cursor_right();
+                        }
+                        Action::MoveHome => {
+                            self.completion_menu = None;
+                            self.buffer.move_cursor_home();
+                        }
+                        Action::MoveEnd => {
+                            self.completion_menu = None;
+                            self.buffer.move_cursor_end();
+                        }
+                        Action::MoveWordLeft => {
+                            self.completion_menu = None;
+                            self.buffer.move_word_left();
+                        }
+                        Action::MoveWordRight => {
+                            self.completion_menu = None;
+                            self.buffer.move_word_right();
+                        }
+                        Action::KillToEnd => {
+                            self.completion_menu = None;
+                            self.buffer.kill_to_end();
+                        }
+                        Action::KillToStart => {
+                            self.completion_menu = None;
+                            self.buffer.kill_to_start();
+                        }
+                        Action::KillWordLeft => {
+                            self.completion_menu = None;
+                            self.buffer.kill_word_left();
+                        }
+                        Action::Yank => {
+                            self.completion_menu = None;
+                            self.buffer.yank();
+                        }
+                        Action::Undo => {
+                            self.completion_menu = None;
+                            self.buffer.undo();
+                        }
+                        Action::Redo => {
+                            self.completion_menu = None;
+                            self.buffer.redo();
+                        }
+                        Action::ClearScreen => {
+                            self.stderr.queue(Clear(ClearType::All))?;
+                            self.stderr.queue(MoveTo(0, 0))?;
+                        }
+                        Action::AcceptSuggestion => {
+                            if self.config.auto_suggestion
+                                && self.buffer.cursor() == self.buffer.len()
+                            {
+                                let line = self.buffer.as_str();
+                                if let Some(suffix) = self.history.suggest_suffix(&line) {
+                                    self.buffer.insert_str(&suffix);
+                                }
+                            } else {
+                                self.buffer.move_cursor_right();
+                            }
+                        }
+                        Action::HistoryPrev => {
+                            if self.history.search_prefix.is_none() {
+                                self.history.search_prefix = Some(self.buffer.as_str().to_string());
+                            }
+                            let prefix = self.history.search_prefix.as_ref().unwrap().clone();
+                            if let Some(matched) = self.history.previous_match(&prefix) {
+                                let s = matched.to_string();
+                                self.buffer = LineBuffer::from_text(&s);
+                            }
+                        }
+                        Action::HistoryNext => {
+                            if self.history.search_prefix.is_none() {
+                                self.history.search_prefix = Some(self.buffer.as_str().to_string());
+                            }
+                            let prefix = self.history.search_prefix.as_ref().unwrap().clone();
+                            if let Some(matched) = self.history.next_match(&prefix) {
+                                let s = matched.to_string();
+                                self.buffer = LineBuffer::from_text(&s);
+                            } else {
+                                self.buffer = LineBuffer::from_text(&prefix);
+                            }
+                        }
+                        Action::CompleteTab => {
+                            if self.config.tab_completion {
+                                let line = self.buffer.as_str();
+                                let cursor = self.buffer.cursor();
+                                let mut handled = false;
+                                if let Some((start_idx, candidates)) =
+                                    self.completer.complete(&line, cursor)
+                                {
+                                    if candidates.len() == 1 {
+                                        let replacement = &candidates[0];
+                                        let current_token: String = line
+                                            .chars()
+                                            .skip(start_idx)
+                                            .take(cursor.saturating_sub(start_idx))
+                                            .collect();
+                                        if let Some(addition) =
+                                            replacement.strip_prefix(&current_token)
+                                        {
+                                            self.buffer.insert_str(addition);
+                                        }
+                                        self.completion_menu = None;
+                                        handled = true;
+                                    } else if candidates.len() > 1 {
+                                        let lcp = Completer::longest_common_prefix(&candidates);
+                                        let current_token: String = line
+                                            .chars()
+                                            .skip(start_idx)
+                                            .take(cursor.saturating_sub(start_idx))
+                                            .collect();
+                                        let current_chars = current_token.chars().count();
+                                        if lcp.chars().count() > current_chars
+                                            && lcp.starts_with(&current_token)
+                                        {
+                                            let addition: String =
+                                                lcp.chars().skip(current_chars).collect();
+                                            self.buffer.insert_str(&addition);
+                                        }
+                                        handled = true;
+                                        // Menu is already populated by auto-complete trigger
+                                    }
+                                }
+
+                                // Fallback: if no completion candidates, accept shadow suggestion
+                                if !handled
+                                    && self.config.auto_suggestion
+                                    && cursor == line.chars().count()
+                                    && let Some(suffix) = self.history.suggest_suffix(&line)
+                                {
+                                    self.buffer.insert_str(&suffix);
+                                }
+                            }
+                        }
+                        Action::SwitchMode(new_mode) => {
+                            self.keymap.mode = new_mode;
+                        }
+                        Action::Noop => {}
+                    }
+                    self.render(prompt)?;
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn trigger_autocomplete(&mut self) {
+        let line = self.buffer.as_str();
+        let cursor = self.buffer.cursor();
+
+        // Don't auto-trigger on space, it dumps the entire directory
+        if cursor > 0
+            && line
+                .chars()
+                .nth(cursor - 1)
+                .is_some_and(|c| c.is_whitespace())
+        {
+            self.completion_menu = None;
+            return;
+        }
+
+        if let Some((_, candidates)) = self.completer.complete(&line, cursor) {
+            if candidates.len() > 1 {
+                self.completion_menu = Some(candidates);
+            } else {
+                self.completion_menu = None;
+            }
+        } else {
+            self.completion_menu = None;
+        }
+    }
+
+    fn render_literal_paste(&mut self, prompt: &str) -> io::Result<()> {
+        let auto_suggestion = self.config.auto_suggestion;
+        self.config.auto_suggestion = false;
+        let result = self.render(prompt);
+        self.config.auto_suggestion = auto_suggestion;
+        result
+    }
+
+    fn prompt_visual_width(prompt: &str) -> usize {
+        let last_line = prompt.split('\n').next_back().unwrap_or(prompt);
+        let mut width = 0;
+        let mut in_ansi = false;
+        for ch in last_line.chars() {
+            if ch == '\x1b' {
+                in_ansi = true;
+            } else if in_ansi {
+                if ch.is_ascii_alphabetic() {
+                    in_ansi = false;
+                }
+            } else {
+                width += unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+            }
+        }
+        width
+    }
+
+    fn render(&mut self, prompt: &str) -> io::Result<()> {
+        let line = self.buffer.as_str();
+        let prompt_width = Self::prompt_visual_width(prompt);
+
+        if self.prompt_rendered {
+            if self.rendered_row_offset > 0 {
+                self.stderr
+                    .queue(cursor::MoveUp(self.rendered_row_offset))?;
+            }
+            self.stderr.queue(Print("\r"))?;
+            self.stderr.queue(MoveToColumn(prompt_width as u16))?;
+            self.stderr.queue(Clear(ClearType::FromCursorDown))?;
+        } else {
+            self.stderr.queue(Print("\r"))?;
+            self.stderr.queue(Clear(ClearType::FromCursorDown))?;
+            self.stderr.queue(Print(prompt))?;
+            self.prompt_rendered = true;
+        }
+
+        if self.config.syntax_highlighting {
+            let spans = self.highlighter.highlight(&line);
+            for span in spans {
+                self.stderr.queue(PrintStyledContent(StyledContent::new(
+                    span.style,
+                    span.text.replace('\n', "\r\n"),
+                )))?;
+                self.stderr.queue(ResetColor)?;
+            }
+        } else {
+            self.stderr.queue(Print(line.replace('\n', "\r\n")))?;
+        }
+
+        let mut suffix_len = 0;
+        if self.config.auto_suggestion
+            && !line.contains('\n')
+            && self.buffer.cursor() == self.buffer.len()
+            && let Some(suffix) = self.history.suggest_suffix(&line)
+        {
+            suffix_len = unicode_width::UnicodeWidthStr::width(suffix.as_str());
+            self.stderr.queue(SetForegroundColor(Color::DarkGrey))?;
+            self.stderr.queue(Print(&suffix))?;
+            self.stderr.queue(ResetColor)?;
+        }
+
+        let (cols, _rows) = terminal::size().unwrap_or((80, 24));
+        let cols = cols.max(1);
+
+        let (target_row_offset, target_col_offset) =
+            visual_position(&line, self.buffer.cursor(), prompt_width, cols as usize);
+        let (end_row_offset, _) =
+            visual_position(&line, self.buffer.len(), prompt_width, cols as usize);
+        let end_row_offset = end_row_offset
+            .saturating_add(((target_col_offset as usize + suffix_len) / cols as usize) as u16);
+        let rows_to_move_up = end_row_offset - target_row_offset;
+
+        if let Some(ref candidates) = self.completion_menu {
+            self.stderr.queue(Print("\r\n"))?;
+            self.stderr.queue(Clear(ClearType::CurrentLine))?;
+
+            let display_candidates: Vec<&str> =
+                candidates.iter().take(8).map(|s| s.as_str()).collect();
+            let mut menu_str = display_candidates.join("   ");
+
+            let prefix = "  [ ";
+            let suffix_str = if candidates.len() > 8 {
+                format!(" ... +{} more ]", candidates.len() - 8)
+            } else {
+                " ]".to_string()
+            };
+
+            let max_len = (cols as usize).saturating_sub(prefix.len() + suffix_str.len() + 1);
+            if menu_str.len() > max_len {
+                menu_str.truncate(max_len);
+            }
+
+            self.stderr.queue(SetForegroundColor(Color::DarkCyan))?;
+            self.stderr.queue(Print(prefix))?;
+            self.stderr.queue(SetForegroundColor(Color::Yellow))?;
+            self.stderr.queue(Print(&menu_str))?;
+            self.stderr.queue(SetForegroundColor(Color::DarkCyan))?;
+            self.stderr.queue(Print(&suffix_str))?;
+            self.stderr.queue(ResetColor)?;
+
+            self.stderr.queue(cursor::MoveUp(1))?;
+        }
+
+        if rows_to_move_up > 0 {
+            self.stderr.queue(cursor::MoveUp(rows_to_move_up))?;
+        }
+        self.stderr.queue(MoveToColumn(target_col_offset))?;
+        self.rendered_row_offset = target_row_offset;
+        self.stderr.flush()?;
+        Ok(())
+    }
+
+    fn render_line_final(&mut self, _prompt: &str) -> io::Result<()> {
+        let (cols, _) = terminal::size().unwrap_or((80, 24));
+        let cols = cols.max(1);
+
+        let line = self.buffer.as_str();
+        let prompt_width = Self::prompt_visual_width(_prompt);
+        let (target_row_offset, _) =
+            visual_position(&line, self.buffer.cursor(), prompt_width, cols as usize);
+        let (end_row_offset, _) =
+            visual_position(&line, self.buffer.len(), prompt_width, cols as usize);
+
+        if end_row_offset > target_row_offset {
+            self.stderr
+                .queue(cursor::MoveDown(end_row_offset - target_row_offset))?;
+        }
+
+        self.stderr.queue(ResetColor)?;
+        self.stderr.queue(Print("\r\n"))?;
+        self.stderr.queue(Clear(ClearType::CurrentLine))?;
+        self.stderr.flush()?;
+        Ok(())
+    }
+}
+
+fn visual_position(
+    text: &str,
+    character_limit: usize,
+    initial_column: usize,
+    columns: usize,
+) -> (u16, u16) {
+    let columns = columns.max(1);
+    let mut row = initial_column / columns;
+    let mut column = initial_column % columns;
+    for character in text.chars().take(character_limit) {
+        if character == '\n' {
+            row += 1;
+            column = 0;
+            continue;
+        }
+        let width = unicode_width::UnicodeWidthChar::width(character).unwrap_or(0);
+        row += (column + width) / columns;
+        column = (column + width) % columns;
+    }
+    (
+        u16::try_from(row).unwrap_or(u16::MAX),
+        u16::try_from(column).unwrap_or(u16::MAX),
+    )
+}
+
+fn normalize_paste(text: &str) -> String {
+    text.replace("\r\n", "\n").replace('\r', "\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{normalize_paste, visual_position};
+
+    #[test]
+    fn preserves_multiple_commands_as_one_block() {
+        let pasted = "printf 'one\\n'\nprintf 'two\\n'\n";
+        assert_eq!(normalize_paste(pasted), pasted);
+    }
+
+    #[test]
+    fn normalizes_crlf_without_discarding_commands() {
+        assert_eq!(
+            normalize_paste("echo one\r\necho two\r\n"),
+            "echo one\necho two\n"
+        );
+    }
+
+    #[test]
+    fn preserves_heredoc_structure() {
+        let pasted = "cat <<'EOF'\nfirst\nsecond\nEOF\n";
+        assert_eq!(normalize_paste(pasted), pasted);
+    }
+
+    #[test]
+    fn multiline_visual_position_resets_columns_at_newlines() {
+        assert_eq!(visual_position("abc\ndef", 7, 5, 80), (1, 3));
+        assert_eq!(visual_position("abc\ndef", 4, 5, 80), (1, 0));
+    }
+}
