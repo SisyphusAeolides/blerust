@@ -13,16 +13,6 @@ Designed as a modern, high-performance alternative to `ble.sh`.
 
 ## Installation
 
-### ArachOS repository
-
-Install the ArachOS package from the configured repository:
-
-```sh
-sudo dnf install blerust
-```
-
-Local packages are built and indexed by the ArachOS `build-packages` target.
-
 ### DNF/RPM based systems
 
 The package is available in the Sisyphus Copr repository for DNF/RPM based systems.
