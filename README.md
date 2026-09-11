@@ -25,18 +25,11 @@ Local packages are built and indexed by the ArachOS `build-packages` target.
 
 ### Fedora-based systems
 
-The Sisyphus repository publishes the Fedora package used by ArachOS and other
-supported Fedora-based systems. Add the repository to `/etc/dnf.conf`, then
-install the package:
+The package is available in the Sisyphus Copr repository for Fedora-based systems.
+Enable the repository and install the package:
 
-```ini
-[sisyphus]
-SigLevel = Required DatabaseRequired
-Server = https://sisyphusaeolides.github.io/Sisyphus-Repo/$arch
-```
-
-```sh
-sudo dnf makecache
+```console
+sudo dnf copr enable sisyphuscode/blerust
 sudo dnf install blerust
 ```
 
