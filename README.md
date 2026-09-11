@@ -23,9 +23,9 @@ sudo dnf install blerust
 
 Local packages are built and indexed by the ArachOS `build-packages` target.
 
-### Fedora-based systems
+### DNF/RPM based systems
 
-The package is available in the Sisyphus Copr repository for Fedora-based systems.
+The package is available in the Sisyphus Copr repository for DNF/RPM based systems.
 Enable the repository and install the package:
 
 ```console
