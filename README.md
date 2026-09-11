@@ -18,7 +18,7 @@ Designed as a modern, high-performance alternative to `ble.sh`.
 Install the ArachOS package from the configured repository:
 
 ```sh
-sudo dnf -S blerust
+sudo dnf install blerust
 ```
 
 Local packages are built and indexed by the ArachOS `build-packages` target.
@@ -36,8 +36,8 @@ Server = https://sisyphusaeolides.github.io/Sisyphus-Repo/$arch
 ```
 
 ```sh
-sudo dnf -Syy
-sudo dnf -S blerust
+sudo dnf makecache
+sudo dnf install blerust
 ```
 
 After installing, run the setup command once to add blerust to your shell:
