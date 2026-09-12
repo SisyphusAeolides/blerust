@@ -276,7 +276,7 @@ impl SyntaxHighlighter {
                     });
                 } else {
                     let mut style = ContentStyle::new();
-                    style.foreground_color = Some(Color::Red);
+                    // style.foreground_color = Some(Color::Red);
                     spans.push(StyledSpan {
                         text: word,
                         token_type: TokenType::CommandInvalid,
