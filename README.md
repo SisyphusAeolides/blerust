@@ -13,14 +13,15 @@ Designed as a modern, high-performance alternative to `ble.sh`.
 
 ## Installation
 
-### DNF/RPM based systems
+### Arch-based systems
 
-The package is available in the Sisyphus Copr repository for DNF/RPM based systems.
-Enable the repository and install the package:
+The package is available from the Sisyphus Arch repository. Configure that
+repository as described in [Sisyphus-Repo](https://github.com/SisyphusAeolides/Sisyphus-Repo),
+then install it with pacman:
 
 ```console
-sudo dnf copr enable sisyphuscode/blerust
-sudo dnf install blerust
+sudo pacman -Syu
+sudo pacman -S blerust
 ```
 
 After installing, run the setup command once to add blerust to your shell:
@@ -35,9 +36,10 @@ Then restart your terminal or source your shell config:
 source ~/.bashrc
 ```
 
-### From Source
+### Build from source
 
 ```sh
+sudo pacman -S --needed base-devel rust
 cargo build --release
 sudo install -m 755 target/release/blerust /usr/local/bin/blerust
 blerust --install
